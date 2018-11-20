@@ -1,0 +1,4 @@
+* Advent of Code 2018 in Emacs Lisp
+It's become somewhat of a tradition that I solve the advent of code in
+Emacs Lisp every year.  This is the repository where my answers will
+live this year.
