@@ -12,7 +12,7 @@
 (defun day1-part-1 (input-file)
   "Run my solution to part one of the problem on the input in INPUT-FILE."
   (cl-loop for line in (split-string input-file "\n" t " ")
-           sum (string-to-number line)))
+     sum (string-to-number line)))
 
 ;; # PART 2:
 
@@ -22,12 +22,12 @@
         (frequency 0))
     (while (consp (setq result
                         (cl-loop with frequencies-seen = result
-                                 for line in (split-string input-file "\n" t " ")
-                                 do (setq frequency (+ frequency (string-to-number line)))
-                                 when (member frequency frequencies-seen)
-                                 return frequency
-                                 do (push frequency frequencies-seen)
-                                 finally return frequencies-seen))))
+                           for line in (split-string input-file "\n" t " ")
+                           do (setq frequency (+ frequency (string-to-number line)))
+                           when (member frequency frequencies-seen)
+                             return frequency
+                           do (push frequency frequencies-seen)
+                           finally return frequencies-seen))))
     result))
 
 ;; Run the solution:
