@@ -80,10 +80,6 @@ LABELS are the possible labels for areas."
   "Produce the manhattan distance between (I, J) and (X, Y)."
   (+ (abs (- i x)) (abs (- j y))))
 
-(defun make-grid (x y)
-  "Make a grid of size X Y."
-  (make-vector (* x y) 0))
-
 (defun within-10000 (x y coords)
   "Produce t if (X, Y) is within a total of 10000 of all COORDS."
   (cl-loop for coord in coords
@@ -94,17 +90,6 @@ LABELS are the possible labels for areas."
        return 0
      finally return 1))
 
-;; (let ((coords (parse-coords input-file)))
-;;     (cl-loop for coord in coords
-;;        with grid = (make-grid 30000 30000)
-;;        for (x y) = coord
-;;        do (cl-loop for i from -15000 below 15000
-;;              do (cl-loop for j from -15000 below 15000
-;;                    do (cl-incf (aref grid (+ (* 30000 (+ i 15000)) (+ j 15000)))
-;;                                (manhattan-distance i j x y))))
-;;        finally return (cl-count-if (lambda (x) (< x 10000))
-;;                          grid)))
-
 (defun day6-part-2 (input-file)
   "Run my solution to part two of the problem on the input in INPUT-FILE."
   (let ((coords (parse-coords input-file)))
@@ -113,6 +98,8 @@ LABELS are the possible labels for areas."
               sum (within-10000 i j coords)))))
 
 ;; Solution: 42250 (with grid version)
+
+;; New version is faster and also gets: 42250
 
 ;; Run the solution:
 
