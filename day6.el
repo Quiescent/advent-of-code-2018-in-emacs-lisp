@@ -21,20 +21,20 @@
 
 Produce -1 if there's a tie."
   (cl-loop for coord being the elements of (cdr coords)
-           using (index i)
-           with closest   = (car coords)
-           with idx       = 0
-           with dist      = (+ (abs (- x (car closest))) (abs (- y (cadr closest))))
-           with tied      = nil
-           for  next-dist = (+ (abs (- x (car coord)))   (abs (- y (cadr coord))))
-           if (< next-dist dist)
-           do (setq closest coord
-                    dist    next-dist
-                    tied    nil
-                    idx     (1+ i))
-           else if (= next-dist dist)
-           do (setq tied t)
-           finally return (if tied -1 idx)))
+     using (index i)
+     with closest   = (car coords)
+     with idx       = 0
+     with dist      = (+ (abs (- x (car closest))) (abs (- y (cadr closest))))
+     with tied      = nil
+     for  next-dist = (+ (abs (- x (car coord)))   (abs (- y (cadr coord))))
+     if (< next-dist dist)
+       do (setq closest coord
+                dist    next-dist
+                tied    nil
+                idx     (1+ i))
+     else if (= next-dist dist)
+            do (setq tied t)
+     finally return (if tied -1 idx)))
 
 (defconst min-coord 0)
 (defconst max-coord 300)
@@ -42,11 +42,11 @@ Produce -1 if there's a tie."
 (defun remove-boundary-labels (grid labels)
   "Remove from GRID, those LABELS which are on the edge."
   (cl-loop for i from min-coord to max-coord
-           do (setq labels (remove (gethash (cons i min-coord) grid) labels))
-           do (setq labels (remove (gethash (cons min-coord i) grid) labels))
-           do (setq labels (remove (gethash (cons i max-coord) grid) labels))
-           do (setq labels (remove (gethash (cons max-coord i) grid) labels))
-           finally return labels))
+     do (setq labels (remove (gethash (cons i min-coord) grid) labels))
+     do (setq labels (remove (gethash (cons min-coord i) grid) labels))
+     do (setq labels (remove (gethash (cons i max-coord) grid) labels))
+     do (setq labels (remove (gethash (cons max-coord i) grid) labels))
+     finally return labels))
 
 (defun find-largest-area (grid labels)
   "Find the largest non-infinite area in GRID.
@@ -55,24 +55,24 @@ LABELS are the possible labels for areas."
   (let ((adjusted (remove-boundary-labels grid labels))
         (values   (hash-table-values grid)))
     (cl-loop for label in (cdr adjusted)
-             with largest-label = (car adjusted)
-             with largest-count = (cl-count largest-label values)
-             for  next-count    = (cl-count label         values)
-             when (> next-count largest-count)
-             do (setq largest-count next-count
-                      largest-label label)
-             finally return largest-count)))
+       with largest-label = (car adjusted)
+       with largest-count = (cl-count largest-label values)
+       for  next-count    = (cl-count label         values)
+       when (> next-count largest-count)
+         do (setq largest-count next-count
+                  largest-label label)
+       finally return largest-count)))
 
 (defun day6-part-1 (input-file)
   "Run my solution to part one of the problem on the input in INPUT-FILE."
   (let ((coords (parse-coords input-file)))
     (cl-loop for i from min-coord to max-coord
-             with grid = (make-hash-table :test #'equal)
-             do (cl-loop for j from min-coord to max-coord
-                         do (setf (gethash (cons i j) grid) (closest-to i j coords)))
-             finally return (find-largest-area grid
-                                               (cl-loop for i from 0 below (length coords)
-                                                        collect i)))))
+       with grid = (make-hash-table :test #'equal)
+       do (cl-loop for j from min-coord to max-coord
+             do (setf (gethash (cons i j) grid) (closest-to i j coords)))
+       finally return (find-largest-area grid
+                                         (cl-loop for i from 0 below (length coords)
+                                            collect i)))))
 
 ;; # PART 2:
 
@@ -83,19 +83,19 @@ LABELS are the possible labels for areas."
 (defun within-10000 (x y coords)
   "Produce t if (X, Y) is within a total of 10000 of all COORDS."
   (cl-loop for coord in coords
-           with sum   = 0
-           for  (i j) = coord
-           do (cl-incf sum (manhattan-distance i j x y))
-           when (>= sum 10000)
-           return 0
-           finally return 1))
+     with sum   = 0
+     for  (i j) = coord
+     do (cl-incf sum (manhattan-distance i j x y))
+     when (>= sum 10000)
+       return 0
+     finally return 1))
 
 (defun day6-part-2 (input-file)
   "Run my solution to part two of the problem on the input in INPUT-FILE."
   (let ((coords (parse-coords input-file)))
     (cl-loop for i from 0 below 500
-             sum (cl-loop for j from 0 below 500
-                          sum (within-10000 i j coords)))))
+       sum (cl-loop for j from 0 below 500
+              sum (within-10000 i j coords)))))
 
 ;; Solution: 42250 (with grid version)
 
