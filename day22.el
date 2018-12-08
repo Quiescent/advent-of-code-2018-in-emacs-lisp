@@ -13,6 +13,11 @@
   "Run my solution to part one of the problem on the input in INPUT-FILE."
   )
 
+(let* ((test-input    "")
+       (test-computed (day22-part-1 test-input))
+       (test-ans      0))
+  (message "Expected: %s\n    Got:      %s" test-ans test-computed))
+
 (defvar run-from-batch nil
   "Whether this was run froom batch.
 
@@ -24,6 +29,11 @@ so that Emacs doesn't hang.")
 (defun day22-part-2 (input-file)
   "Run my solution to part two of the problem on the input in INPUT-FILE."
   )
+
+(let* ((test-input    "")
+       (test-computed (day22-part-2 test-input))
+       (test-ans      0))
+  (message "Expected: %s\n    Got:      %s" test-ans test-computed))
 
 ;; Run the solution:
 

@@ -108,6 +108,11 @@ Times before the 00 hour are truncated to 00."
                                   (setq max-count current-count))
                            finally return (* guard-longest-asleep max))))))
 
+(let* ((test-input    "")
+       (test-computed (day4-part-1 test-input))
+       (test-ans      0))
+  (message "Expected: %s\n    Got:      %s" test-ans test-computed))
+
 ;; 55453 -- too high
 
 ;; # PART 2:
@@ -163,6 +168,11 @@ Times before the 00 hour are truncated to 00."
                                   (setq max-idx current-position)
                                   (setq max-guard guard))
                            finally return (* max-guard max-idx))))))
+
+(let* ((test-input    "")
+       (test-computed (day4-part-2 test-input))
+       (test-ans      0))
+  (message "Expected: %s\n    Got:      %s" test-ans test-computed))
 
 ;; 8082 is too low
 

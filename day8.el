@@ -51,6 +51,11 @@ so that Emacs doesn't hang.")
   (let ((numbers (cl-map 'vector #'string-to-number (split-string input-file " " t))))
     (cadr (sum-children-meta-data 0 numbers))))
 
+(let* ((test-input    "")
+       (test-computed (day8-part-1 test-input))
+       (test-ans      0))
+  (message "Expected: %s\n    Got:      %s" test-ans test-computed))
+
 ;; Wrong: 227
 ;; Right: 42951
 
@@ -88,6 +93,11 @@ so that Emacs doesn't hang.")
   "Run my solution to part two of the problem on the input in INPUT-FILE."
   (let ((numbers (cl-map 'vector #'string-to-number (split-string input-file " " t))))
     (cadr (sum-children-meta-data-advanced 0 numbers))))
+
+(let* ((test-input    "")
+       (test-computed (day8-part-2 test-input))
+       (test-ans      0))
+  (message "Expected: %s\n    Got:      %s" test-ans test-computed))
 
 ;; Solution: 18568
 

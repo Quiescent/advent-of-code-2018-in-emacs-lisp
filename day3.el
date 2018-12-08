@@ -37,6 +37,11 @@ so that Emacs doesn't hang.")
                          do (puthash (cons i j) (1+ current-count) grid)))))))
      finally return (cl-count-if (lambda (x) (>= x 2)) (hash-table-values grid))))
 
+(let* ((test-input    "")
+       (test-computed (day3-part-1 test-input))
+       (test-ans      0))
+  (message "Expected: %s\n    Got:      %s" test-ans test-computed))
+
 
 ;; (defun day3-part-1 (input-file)
 ;;   "Run my solution to part one of the problem on the input in INPUT-FILE."
@@ -100,6 +105,11 @@ so that Emacs doesn't hang.")
                always (or (equal rect1 rect2)
                           (not (day3-intersects (cdr rect1) (cdr rect2)))))
          collect (car rect1))))
+
+(let* ((test-input    "")
+       (test-computed (day3-part-2 test-input))
+       (test-ans      0))
+  (message "Expected: %s\n    Got:      %s" test-ans test-computed))
 
 ;; 350 isn't correct
 ;; 415 was correct... now to make it so in the code...

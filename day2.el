@@ -47,6 +47,11 @@ so that Emacs doesn't hang.")
        do (cl-incf two-count)
      finally return (* three-count two-count)))
 
+(let* ((test-input    "")
+       (test-computed (day2-part-1 test-input))
+       (test-ans      0))
+  (message "Expected: %s\n    Got:      %s" test-ans test-computed))
+
 ;; # PART 2:
 
 (defun differ-by-one-p (this other)
@@ -71,6 +76,11 @@ so that Emacs doesn't hang.")
          return (cl-loop for i below (length id)
                    when (eq (aref id i) (aref other-string i))
                      concat (char-to-string (aref id i))))))
+
+(let* ((test-input    "")
+       (test-computed (day2-part-2 test-input))
+       (test-ans      0))
+  (message "Expected: %s\n    Got:      %s" test-ans test-computed))
 
 ;; Run the solution:
 

@@ -20,6 +20,11 @@ so that Emacs doesn't hang.")
   (cl-loop for line in (split-string input-file "\n" t " ")
      sum (string-to-number line)))
 
+(let* ((test-input    "")
+       (test-computed (day1-part-1 test-input))
+       (test-ans      0))
+  (message "Expected: %s\n    Got:      %s" test-ans test-computed))
+
 ;; # PART 2:
 
 (defun day1-part-2 (input-file)
@@ -35,6 +40,11 @@ so that Emacs doesn't hang.")
                            do (push frequency frequencies-seen)
                            finally return frequencies-seen))))
     result))
+
+(let* ((test-input    "")
+       (test-computed (day1-part-2 test-input))
+       (test-ans      0))
+  (message "Expected: %s\n    Got:      %s" test-ans test-computed))
 
 ;; Run the solution:
 

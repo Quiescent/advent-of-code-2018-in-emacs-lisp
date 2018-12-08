@@ -80,6 +80,11 @@ LABELS are the possible labels for areas."
                                          (cl-loop for i from 0 below (length coords)
                                             collect i)))))
 
+(let* ((test-input    "")
+       (test-computed (day6-part-1 test-input))
+       (test-ans      0))
+  (message "Expected: %s\n    Got:      %s" test-ans test-computed))
+
 ;; # PART 2:
 
 (defun manhattan-distance (i j x y)
@@ -102,6 +107,11 @@ LABELS are the possible labels for areas."
     (cl-loop for i from 0 below 500
        sum (cl-loop for j from 0 below 500
               sum (within-10000 i j coords)))))
+
+(let* ((test-input    "")
+       (test-computed (day6-part-2 test-input))
+       (test-ans      0))
+  (message "Expected: %s\n    Got:      %s" test-ans test-computed))
 
 ;; Solution: 42250 (with grid version)
 

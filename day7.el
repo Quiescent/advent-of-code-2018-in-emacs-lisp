@@ -43,6 +43,11 @@
      do (setq edges              (cl-remove-if (lambda (x) (equal x root)) edges :key #'car))
      finally return (append ordering (cl-set-difference initial-vertices ordering :test #'string-equal))))
 
+(let* ((test-input    "")
+       (test-computed (day7-part-1 test-input))
+       (test-ans      0))
+  (message "Expected: %s\n    Got:      %s" test-ans test-computed))
+
 ;; # PART 2:
 
 (defun step-length (char)
@@ -95,6 +100,11 @@ We only want long running executions to be done from the terminal
                                                                    ordering
                                                                    :test #'string-equal))
                                                0)))))
+
+(let* ((test-input    "")
+       (test-computed (day7-part-2 test-input))
+       (test-ans      0))
+  (message "Expected: %s\n    Got:      %s" test-ans test-computed))
 
 ;; Wrong solution: OPCUEXFHIRGWDZABTQYJMNKVSL
 ;; Another:        OPCUXEFHIRWGZDABTQYJMNKVSL
