@@ -7,6 +7,12 @@
 
 ;; # PART 1:
 
+(defvar run-from-batch nil
+  "Whether this was run froom batch.
+
+We only want long running executions to be done from the terminal
+     so that Emacs doesn't hang.")
+
 (require 'cl-lib)
 
 (require 'subr-x)
@@ -79,19 +85,15 @@
                      #'string-lessp)
      until (eq (length ordering) (1- (length initial-vertices)))
 
-           (defvar run-from-batch nil
-             "Whether this was run froom batch.
-
-We only want long running executions to be done from the terminal
-     so that Emacs doesn't hang.")  do (cl-mapc (lambda (worker
-                                                         root)
-                                                  (progn
-                                                    (push `(,worker ,root ,(+ second
-                                                                              60
-                                                                              (step-length (aref root 0))))
-                                                          schedule)
-                                                    (setq available-workers (remove worker available-workers))))
-                                          available-workers roots)
+     do (cl-mapc (lambda (worker
+                          root)
+                   (progn
+                     (push `(,worker ,root ,(+ second
+                                               60
+                                               (step-length (aref root 0))))
+                           schedule)
+                     (setq available-workers (remove worker available-workers))))
+           available-workers roots)
      do (setq schedule (cl-sort schedule #'< :key #'caddr))
      do (cl-incf second)
      finally return (+ second 60 (step-length (aref
