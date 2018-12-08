@@ -9,6 +9,12 @@
 
 (require 'cl-lib)
 
+(defvar run-from-batch nil
+  "Whether this was run froom batch.
+
+We only want long running executions to be done from the terminal
+so that Emacs doesn't hang.")
+
 (require 'subr-x)
 
 (defun day3-part-1 (input-file)
@@ -100,18 +106,19 @@
 
 ;; Run the solution:
 
-(progn
-  (message "\n********** OUTPUT **********")
-  (let ((input-1 (with-temp-buffer
-                   (find-file-literally "day3-part-1")
-                   (buffer-substring (point-min)
-                                     (point-max))))
-        (input-1 (with-temp-buffer
-                   (find-file-literally "day3-part-1")
-                   (buffer-substring (point-min)
-                                     (point-max)))))
-    (message "Part 2: %s" (day3-part-1 input-1))
-    (message "Part 2: %s\n" (day3-part-2 input-1))))
+(when run-from-batch
+  (progn
+    (message "\n********** OUTPUT **********")
+    (let ((input-1 (with-temp-buffer
+                     (find-file-literally "day3-part-1")
+                     (buffer-substring (point-min)
+                                       (point-max))))
+          (input-1 (with-temp-buffer
+                     (find-file-literally "day3-part-1")
+                     (buffer-substring (point-min)
+                                       (point-max)))))
+      (message "Part 2: %s" (day3-part-1 input-1))
+      (message "Part 2: %s\n" (day3-part-2 input-1)))))
 
 (provide 'day3)
 ;;; day3 ends here

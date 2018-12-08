@@ -8,6 +8,12 @@
 ;; # PART 1:
 
 (require 'cl-lib)
+
+(defvar run-from-batch nil
+  "Whether this was run froom batch.
+
+We only want long running executions to be done from the terminal
+so that Emacs doesn't hang.")
 (require 'subr-x)
 
 (defun parse-coords (input-file)
@@ -103,20 +109,21 @@ LABELS are the possible labels for areas."
 
 ;; Run the solution:
 
-(progn
-  (message "\n********** OUTPUT **********")
-  (let ((input-1 (save-window-excursion
-                   (with-temp-buffer
-                     (find-file-literally "day6-part-1")
-                     (buffer-substring (point-min)
-                                       (point-max)))))
-        (input-2 (save-window-excursion
-                   (with-temp-buffer
-                     (find-file-literally "day6-part-1")
-                     (buffer-substring (point-min)
-                                       (point-max))))))
-    (message "Part 1: %s" (day6-part-1 input-1))
-    (message "Part 2: %s\n" (day6-part-2 input-2))))
+(when run-from-batch
+  (progn
+    (message "\n********** OUTPUT **********")
+    (let ((input-1 (save-window-excursion
+                     (with-temp-buffer
+                       (find-file-literally "day6-part-1")
+                       (buffer-substring (point-min)
+                                         (point-max)))))
+          (input-2 (save-window-excursion
+                     (with-temp-buffer
+                       (find-file-literally "day6-part-1")
+                       (buffer-substring (point-min)
+                                         (point-max))))))
+      (message "Part 1: %s" (day6-part-1 input-1))
+      (message "Part 2: %s\n" (day6-part-2 input-2)))))
 
 (provide 'day6)
 ;;; day6 ends here

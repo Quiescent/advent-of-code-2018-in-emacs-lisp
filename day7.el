@@ -73,14 +73,20 @@
                               :test #'string-equal)
                      #'string-lessp)
      until (eq (length ordering) (1- (length initial-vertices)))
-     do (cl-mapc (lambda (worker root)
-                   (progn
-                     (push `(,worker ,root ,(+ second
-                                               60
-                                               (step-length (aref root 0))))
-                           schedule)
-                     (setq available-workers (remove worker available-workers))))
-           available-workers roots)
+
+           (defvar run-from-batch nil
+             "Whether this was run froom batch.
+
+We only want long running executions to be done from the terminal
+     so that Emacs doesn't hang.")  do (cl-mapc (lambda (worker
+                                                         root)
+                                                  (progn
+                                                    (push `(,worker ,root ,(+ second
+                                                                              60
+                                                                              (step-length (aref root 0))))
+                                                          schedule)
+                                                    (setq available-workers (remove worker available-workers))))
+                                          available-workers roots)
      do (setq schedule (cl-sort schedule #'< :key #'caddr))
      do (cl-incf second)
      finally return (+ second 60 (step-length (aref
@@ -100,20 +106,21 @@
 
 ;; Run the solution:
 
-(progn
-  (message "\n********** OUTPUT **********")
-  (let ((input-1 (save-window-excursion
-                   (with-temp-buffer
-                     (find-file-literally "day7-part-1")
-                     (buffer-substring (point-min)
-                                       (point-max)))))
-        (input-2 (save-window-excursion
-                   (with-temp-buffer
-                     (find-file-literally "day7-part-1")
-                     (buffer-substring (point-min)
-                                       (point-max))))))
-    (message "Part 1: %s" (day7-part-1 input-1))
-    (message "Part 2: %s\n" (day7-part-2 input-2))))
+(when run-from-batch
+  (progn
+    (message "\n********** OUTPUT **********")
+    (let ((input-1 (save-window-excursion
+                     (with-temp-buffer
+                       (find-file-literally "day7-part-1")
+                       (buffer-substring (point-min)
+                                         (point-max)))))
+          (input-2 (save-window-excursion
+                     (with-temp-buffer
+                       (find-file-literally "day7-part-1")
+                       (buffer-substring (point-min)
+                                         (point-max))))))
+      (message "Part 1: %s" (day7-part-1 input-1))
+      (message "Part 2: %s\n" (day7-part-2 input-2)))))
 
 (provide 'day7)
 ;;; day7 ends here
