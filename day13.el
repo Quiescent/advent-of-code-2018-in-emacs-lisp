@@ -19,39 +19,11 @@ so that Emacs doesn't hang.")
   "Set the tile at X, Y to what it would be without a cart in GRID.
 
 Use LINES to determine neighbours."
-  (let* ((dim-x    (length (nth 0 lines)))
-         (dim-y    (length lines))
-         (up       (if (>= (1- y) 0)     (aref (nth (1- y) lines) x)      nil))
-         (right    (if (< (1+ x) dim-x) (aref (nth y      lines) (1+ x)) nil))
-         (down     (if (< (1+ y) dim-y) (aref (nth (1+ y) lines) x)      nil))
-         (left     (if (>= (1- x) 0)     (aref (nth y      lines) (1- x)) nil)))
-    (if (and (eq left  ?-)
-             (eq right ?-)
-             (eq up    ?|)
-             (eq down  ?|))
-        (aset (aref grid y) x ?+)
-        (if (and (or (eq up   ?|)
-                     (eq down ?|)
-                     (eq up   ?+)
-                     (eq down ?+)
-                     (eq up   ?\\)
-                     (eq down ?\\)
-                     (eq up   ?/)
-                     (eq down ?/))
-                 (not (or (eq left  ?+)
-                          (eq right ?+))))
-            (aset (aref grid y) x ?|)
-            (when (and (or (eq left  ?-)
-                           (eq left  ?/)
-                           (eq left  ?\\)
-                           (eq left  ?+)
-                           (eq right ?-)
-                           (eq right ?/)
-                           (eq right ?\\)
-                           (eq right ?+))
-                       (not (or (eq up   ?+)
-                                (eq down ?+))))
-              (aset (aref grid y) x ?-))))))
+  (pcase (aref (nth y lines) x)
+    (?> (aset (aref grid y) x ?-))
+    (?< (aset (aref grid y) x ?-))
+    (?^ (aset (aref grid y) x ?|))
+    (?v (aset (aref grid y) x ?|))))
 
 (defun parse-carts (input-file)
   "Produce a hash map of every cart coord to it's current state in INPUT-FILE.
@@ -89,38 +61,43 @@ Also produce the map as an array of arrays."
   "Using the rails in GRID, move CART on by one."
   (pcase cart
     (`(,x ,y ,state ,type)
-      (pcase (list (aref (aref grid y) x) type state)
-        (`(?-  ?< ,_) `(,(1- x) ,y      ,state ?<))
-        (`(?-  ?> ,_) `(,(1+ x) ,y      ,state ?>))
+      (let ((result (pcase (list (aref (aref grid y) x) type state)
+                      (`(?-  ?< ,_) `(,(1- x) ,y      ,state ?<))
+                      (`(?-  ?> ,_) `(,(1+ x) ,y      ,state ?>))
 
-        (`(?\\ ?> ,_) `(,x      ,(1+ y) ,state ?v))
-        (`(?\\ ?< ,_) `(,x      ,(1- y) ,state ?^))
-        (`(?\\ ?^ ,_) `(,(1- x) ,y      ,state ?<))
-        (`(?\\ ?v ,_) `(,(1+ x) ,y      ,state ?>))
+                      (`(?\\ ?> ,_) `(,x      ,(1+ y) ,state ?v))
+                      (`(?\\ ?< ,_) `(,x      ,(1- y) ,state ?^))
+                      (`(?\\ ?^ ,_) `(,(1- x) ,y      ,state ?<))
+                      (`(?\\ ?v ,_) `(,(1+ x) ,y      ,state ?>))
 
-        (`(?|  ?^ ,_) `(,x      ,(1- y) ,state ?^))
-        (`(?|  ?v ,_) `(,x      ,(1+ y) ,state ?v))
+                      (`(?|  ?^ ,_) `(,x      ,(1- y) ,state ?^))
+                      (`(?|  ?v ,_) `(,x      ,(1+ y) ,state ?v))
 
-        (`(?/  ?> ,_) `(,x      ,(1- y) ,state ?^))
-        (`(?/  ?< ,_) `(,x      ,(1+ y) ,state ?v))
-        (`(?/  ?^ ,_) `(,(1+ x) ,y      ,state ?>))
-        (`(?/  ?v ,_) `(,(1- x) ,y      ,state ?<))
+                      (`(?/  ?> ,_) `(,x      ,(1- y) ,state ?^))
+                      (`(?/  ?< ,_) `(,x      ,(1+ y) ,state ?v))
+                      (`(?/  ?^ ,_) `(,(1+ x) ,y      ,state ?>))
+                      (`(?/  ?v ,_) `(,(1- x) ,y      ,state ?<))
 
-        ('(?+  ?> 0)  `(,x      ,(1- y) 1      ?^))
-        ('(?+  ?> 1)  `(,(1+ x) ,y      2      ?>))
-        ('(?+  ?> 2)  `(,x      ,(1+ y) 0      ?v))
+                      ('(?+  ?> 0)  `(,x      ,(1- y) 1      ?^))
+                      ('(?+  ?> 1)  `(,(1+ x) ,y      2      ?>))
+                      ('(?+  ?> 2)  `(,x      ,(1+ y) 0      ?v))
 
-        ('(?+  ?v 0)  `(,(1+ x) ,y      1      ?>))
-        ('(?+  ?v 1)  `(,x      ,(1+ y) 2      ?v))
-        ('(?+  ?v 2)  `(,(1- x) ,y      0      ?<))
+                      ('(?+  ?v 0)  `(,(1+ x) ,y      1      ?>))
+                      ('(?+  ?v 1)  `(,x      ,(1+ y) 2      ?v))
+                      ('(?+  ?v 2)  `(,(1- x) ,y      0      ?<))
 
-        ('(?+  ?< 0)  `(,x      ,(1+ y) 1      ?v))
-        ('(?+  ?< 1)  `(,(1- x) ,y      2      ?<))
-        ('(?+  ?< 2)  `(,x      ,(1- y) 0      ?^))
+                      ('(?+  ?< 0)  `(,x      ,(1+ y) 1      ?v))
+                      ('(?+  ?< 1)  `(,(1- x) ,y      2      ?<))
+                      ('(?+  ?< 2)  `(,x      ,(1- y) 0      ?^))
 
-        ('(?+  ?^ 0)  `(,(1- x) ,y      1      ?<))
-        ('(?+  ?^ 1)  `(,x      ,(1- y) 2      ?^))
-        ('(?+  ?^ 2)  `(,(1+ x) ,y      0      ?>))))))
+                      ('(?+  ?^ 0)  `(,(1- x) ,y      1      ?<))
+                      ('(?+  ?^ 1)  `(,x      ,(1- y) 2      ?^))
+                      ('(?+  ?^ 2)  `(,(1+ x) ,y      0      ?>)))))
+        (when (not result)
+          (message "%s,%s,%s,%s" x y
+                   (char-to-string type)
+                   (char-to-string (aref (aref grid y) x))))
+        result))))
 
 (defun tick (carts grid)
   "Advance the state of CARTS by one.
@@ -164,27 +141,49 @@ Use the GRID to decide where they can go."
        (test-ans      "7,3"))
   (message "Expected: %s\n    Got:      %s" test-ans test-computed))
 
+;; Solution 69,46
+
 ;; # PART 2:
+
+(defun remove-collisions (i carts)
+  "Remove collisions with cart at idx I in CARTS including that cart."
+  (let* ((cart (aref carts i))
+         (x    (car  cart))
+         (y    (cadr cart)))
+    (cl-loop for other-cart being the elements of carts
+       using (index l)
+       when (and (eq x (car  other-cart))
+                 (eq y (cadr other-cart))
+                 (not (eq i l)))
+         do (progn
+              (aset carts l nil)
+              (aset carts i nil)))))
+
+(defun tick-with-collision (carts grid)
+  "Advance the state of CARTS by one.
+
+Use the GRID to decide where they can go."
+  (thread-last (cl-loop for l from 0 below (length carts)
+                  for current-cart = (aref carts l)
+                  when current-cart
+                    do (aset carts l (move-cart grid current-cart))
+                  do (remove-collisions l carts)
+                  finally return (cl-remove nil carts))
+    (sort-carts-by-top-then-left)))
 
 (defun day13-part-2 (input-file)
   "Run my solution to part two of the problem on the input in INPUT-FILE."
   (pcase (parse-carts input-file)
     (`(,carts ,grid)
-      (progn
-        (cl-loop for l from 0 to 100000
-           do (setq carts (tick carts grid))
-           for collision = (carts-collide carts)
-           do (message "%s" carts)
-           do (cl-loop while collision
-                 do (message "%s" collision)
-                 do (setq carts (cl-remove-if
-                                 (lambda (cart)
-                                   (cl-search collision cart :start2 0 :end2 2))
-                                   carts))
-                 do (setq collision (carts-collide carts)))
-           when (eq 1 (length carts))
-             return (format "%s,%s" (caar carts) (cadar carts))
-           finally return carts)))))
+      (cl-loop for l from 0 to 100000
+         with arr-carts = (apply #'vector carts)
+         do (setq arr-carts (tick-with-collision arr-carts grid))
+         when (eq 1 (length arr-carts))
+           return (let ((cart (aref arr-carts 0)))
+                    (format "%s,%s"
+                            (car  cart)
+                            (cadr cart)))
+         finally return arr-carts))))
 
 (let* ((test-input    "/>-<\\  
 |   |  
