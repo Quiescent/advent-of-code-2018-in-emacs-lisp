@@ -81,7 +81,7 @@ Ties are broken at distance of 1 by health of unit in ENEMY-UNITS."
        (enemies         (progn
                           (let* ((table (make-hash-table :test 'equal)))
                             (puthash (cons 2 2) (cons 3 3) table)
-                            (puthash (cons 0 2) (cons 3 3) table)
+                            (puthash (cons 0 2) (cons 3 5) table)
                             (puthash (cons 1 3) (cons 3 3) table)
                             (puthash (cons 1 1) (cons 3 4) table)
                             table))))
@@ -199,24 +199,15 @@ Positions with ENEMIES on them can't be moved to."
                      (enemies         (if in-elves goblins elves))
                      (enemy-positions (hash-table-keys enemies)))
                 (when (or in-goblins in-elves)
+                  (when (null enemy-positions)
+                    (cl-return-from detect-early-exit t))
                   (let* ((closest (closest-enemy position enemy-positions enemies)))
-                    (when (null closest)
-                      (cl-return-from detect-early-exit t))
-                    (if (eq 1 (manhattan-distance closest position))
-                        (progn
-                          ;;(message "%s attacks %s" position closest)
-                          (attack closest enemies)
-                          nil)
-                        (let* ((new-pos     (move position units map enemies))
-                               (new-closest (and new-pos
-                                                 (closest-enemy new-pos
-                                                                enemy-positions
-                                                                enemies))))
-                          (when (and new-pos
-                                     (eq 1 (manhattan-distance new-closest new-pos)))
-                            ;;(message "%s attacks %s" new-pos new-closest)
-                            (attack new-closest enemies)
-                            nil)))))))
+                    (when (not (eq 1 (manhattan-distance closest position)))
+                      (setq position (or (move position units map enemies) position))
+                      (setq closest (closest-enemy position enemy-positions enemies)))
+                    (when (and position (eq 1 (manhattan-distance closest position)))
+                      (attack closest enemies))
+                    nil))))
             all-positions)
       nil)))
 
@@ -282,80 +273,93 @@ Positions with ENEMIES on them can't be moved to."
 ;; with off by one (please...)
 ;; 2591 * (89 + 1) = 233190 (wrong) :'(
 
-(let* ((test-input    "######
-#.G..#
-#...E#
-#E...#
-######")
-       (test-computed (day15-part-1 test-input))
-       (test-ans      nil))
-  (message "Expected: %s\n    Got:      %s" test-ans test-computed))
+;; (let* ((test-input    "#########
+;; #G..G..G#
+;; #.......#
+;; #.......#
+;; #G..E..G#
+;; #.......#
+;; #.......#
+;; #G..G..G#
+;; #########")
+;;        (test-computed (day15-part-1 test-input))
+;;        (test-ans      nil))
+;;   (message "Expected: %s\n    Got:      %s" test-ans test-computed))
 
-(let* ((test-input    "#######
-#E..G.#
-#...#.#
-#.G.#G#
-#######")
-       (test-computed (day15-part-1 test-input))
-       (test-ans      nil))
-  (message "Expected: %s\n    Got:      %s" test-ans test-computed))
+;; (let* ((test-input    "######
+;; #.G..#
+;; #...E#
+;; #E...#
+;; ######")
+;;        (test-computed (day15-part-1 test-input))
+;;        (test-ans      nil))
+;;   (message "Expected: %s\n    Got:      %s" test-ans test-computed))
 
-(let* ((test-input    "#######
-#.G...#
-#...EG#
-#.#.#G#
-#..G#E#
-#.....#
-#######")
-       (test-computed (day15-part-1 test-input))
-       (test-ans      27730))
-  (message "Expected: %s\n    Got:      %s" test-ans test-computed))
+;; (let* ((test-input    "#######
+;; #E..G.#
+;; #...#.#
+;; #.G.#G#
+;; #######")
+;;        (test-computed (day15-part-1 test-input))
+;;        (test-ans      nil))
+;;   (message "Expected: %s\n    Got:      %s" test-ans test-computed))
 
-(let* ((test-input    "#######
-#E..EG#
-#.#G.E#
-#E.##E#
-#G..#.#
-#..E#.#
-#######")
-       (test-computed (day15-part-1 test-input))
-       (test-ans      39514))
-  (message "Expected: %s\n    Got:      %s" test-ans test-computed))
+;; (let* ((test-input    "#######
+;; #.G...#
+;; #...EG#
+;; #.#.#G#
+;; #..G#E#
+;; #.....#
+;; #######")
+;;        (test-computed (day15-part-1 test-input))
+;;        (test-ans      27730))
+;;   (message "Expected: %s\n    Got:      %s" test-ans test-computed))
 
-(let* ((test-input    "#######
-#E.G#.#
-#.#G..#
-#G.#.G#
-#G..#.#
-#...E.#
-#######")
-       (test-computed (day15-part-1 test-input))
-       (test-ans      27755))
-  (message "Expected: %s\n    Got:      %s" test-ans test-computed))
+;; (let* ((test-input    "#######
+;; #E..EG#
+;; #.#G.E#
+;; #E.##E#
+;; #G..#.#
+;; #..E#.#
+;; #######")
+;;        (test-computed (day15-part-1 test-input))
+;;        (test-ans      39514))
+;;   (message "Expected: %s\n    Got:      %s" test-ans test-computed))
 
-(let* ((test-input    "#######
-#.E...#
-#.#..G#
-#.###.#
-#E#G#G#
-#...#G#
-#######")
-       (test-computed (day15-part-1 test-input))
-       (test-ans      28944))
-  (message "Expected: %s\n    Got:      %s" test-ans test-computed))
+;; (let* ((test-input    "#######
+;; #E.G#.#
+;; #.#G..#
+;; #G.#.G#
+;; #G..#.#
+;; #...E.#
+;; #######")
+;;        (test-computed (day15-part-1 test-input))
+;;        (test-ans      27755))
+;;   (message "Expected: %s\n    Got:      %s" test-ans test-computed))
 
-(let* ((test-input    "#########
-#G......#
-#.E.#...#
-#..##..G#
-#...##..#
-#...#...#
-#.G...G.#
-#.....G.#
-#########")
-       (test-computed (day15-part-1 test-input))
-       (test-ans      18740))
-  (message "Expected: %s\n    Got:      %s" test-ans test-computed))
+;; (let* ((test-input    "#######
+;; #.E...#
+;; #.#..G#
+;; #.###.#
+;; #E#G#G#
+;; #...#G#
+;; #######")
+;;        (test-computed (day15-part-1 test-input))
+;;        (test-ans      28944))
+;;   (message "Expected: %s\n    Got:      %s" test-ans test-computed))
+
+;; (let* ((test-input    "#########
+;; #G......#
+;; #.E.#...#
+;; #..##..G#
+;; #...##..#
+;; #...#...#
+;; #.G...G.#
+;; #.....G.#
+;; #########")
+;;        (test-computed (day15-part-1 test-input))
+;;        (test-ans      18740))
+;;   (message "Expected: %s\n    Got:      %s" test-ans test-computed))
 
 ;; # PART 2:
 
