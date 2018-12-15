@@ -72,35 +72,20 @@ Ties are broken at distance of 1 by health of unit in ENEMY-UNITS."
                   closest-distance next-distance)
        finally return closest)))
 
-(let* ((position        (cons 1 2))
-       (enemy-positions (list
-                         ;; (cons 2 2)
-                         (cons 0 2)
-                         (cons 1 3)
-                         (cons 1 1)))
-       (enemies         (progn
-                          (let* ((table (make-hash-table :test 'equal)))
-                            (puthash (cons 2 2) 3 table)
-                            (puthash (cons 0 2) 5 table)
-                            (puthash (cons 1 3) 3 table)
-                            (puthash (cons 1 1) 4 table)
-                            table))))
-  (closest-enemy position enemy-positions enemies))
-
-(defun attack (position units)
+(defun attack (position units &optional attack-power)
   "Attack the unit at POSITION in UNITS.
 
-Assume attack power of 3."
-  (let ((health (gethash position units)))
-    (progn
-      ;;(message "%s -> %s" position (cons x (- health 3)))
-      (if (<= health 3)
-          (progn
-            (remhash position units)
-            t)
-          (progn
-            (puthash position (- health 3) units)
-            nil)))))
+Assume attack power of 3, unless the optional argument
+ATTACK-POWER is supplied, in which case use it instead."
+  (let ((health (gethash position units))
+        (power  (or attack-power 3)))
+    (if (<= health power)
+        (progn
+          (remhash position units)
+          t)
+        (progn
+          (puthash position (- health power) units)
+          nil))))
 
 (defun available-moves (pos map units enemies)
   "Produce the available moves from POS in MAP.
@@ -189,8 +174,11 @@ Positions with ENEMIES on them can't be moved to."
       (puthash pos-to-move-to unit-to-move units)
       pos-to-move-to)))
 
-(defun tick (map elves goblins)
-  "Play a round of the simulation on MAP with ELVES and GOBLINS."
+(defun tick (map elves goblins &optional elf-power)
+  "Play a round of the simulation on MAP with ELVES and GOBLINS.
+
+ELF-POWER, when supplied, sets the elf attack power in attacks
+against goblins."
   (let* ((all-positions (thread-first (append (hash-table-keys elves)
                                               (hash-table-keys goblins))
                           (sort-coordinates))))
@@ -211,7 +199,7 @@ Positions with ENEMIES on them can't be moved to."
                   (setq position (or (move position units map enemies) position))
                   (setq closest (closest-enemy position enemy-positions enemies)))
                 (when (and position (eq 1 (manhattan-distance closest position)))
-                  (when (attack closest enemies)
+                  (when (attack closest enemies (or (and in-elves elf-power) 3))
                     (setq all-positions (remove closest all-positions)))))))))
 
 (defun draw-map (map elves goblins)
@@ -236,10 +224,7 @@ Positions with ENEMIES on them can't be moved to."
     (`(,map ,elves ,goblins)
       (cl-loop repeat 1000
          with round = 0
-         do (draw-map map elves goblins)
          for early-exit = (tick map elves goblins)
-         ;; do (message "Elves: %s"   (hash-table-values elves))
-         ;; do (message "Goblins: %s" (hash-table-values goblins))
          when early-exit
            do (progn
                 (message "Finished early on round: %s with Elf health: %s, Goblin health: %s"
@@ -255,7 +240,6 @@ Positions with ENEMIES on them can't be moved to."
                       (cl-return (* round elf-health))
                       (cl-return (* round goblin-health)))))
          do (cl-incf round)
-         do (message "After: %s rounds..." round)
          finally return (format "No winner in %s rounds\n Elves: %s\n Goblins: %s"
                                 round
                                 (hash-table-values elves)
@@ -278,6 +262,9 @@ Positions with ENEMIES on them can't be moved to."
 
 ;; Wrong: 227744 (curiously this is the same answer as is given by two
 ;;   top 100 solutions)
+
+;; Solution is 229798.  Problem was not removing dead coordinates from
+;; the turn schedule.
 
 (let* ((test-input    "#########
 #G..G..G#
@@ -310,38 +297,38 @@ Positions with ENEMIES on them can't be moved to."
 ;;        (test-ans      nil))
 ;;   (message "Expected: %s\n    Got:      %s" test-ans test-computed))
 
-(let* ((test-input    "#######
-#.G...#
-#...EG#
-#.#.#G#
-#..G#E#
-#.....#
-#######")
-       (test-computed (day15-part-1 test-input))
-       (test-ans      27730))
-  (message "Expected: %s\n    Got:      %s" test-ans test-computed))
+;; (let* ((test-input    "#######
+;; #.G...#
+;; #...EG#
+;; #.#.#G#
+;; #..G#E#
+;; #.....#
+;; #######")
+;;        (test-computed (day15-part-1 test-input))
+;;        (test-ans      27730))
+;;   (message "Expected: %s\n    Got:      %s" test-ans test-computed))
 
-(let* ((test-input    "#######
-#E..EG#
-#.#G.E#
-#E.##E#
-#G..#.#
-#..E#.#
-#######")
-       (test-computed (day15-part-1 test-input))
-       (test-ans      39514))
-  (message "Expected: %s\n    Got:      %s" test-ans test-computed))
+;; (let* ((test-input    "#######
+;; #E..EG#
+;; #.#G.E#
+;; #E.##E#
+;; #G..#.#
+;; #..E#.#
+;; #######")
+;;        (test-computed (day15-part-1 test-input))
+;;        (test-ans      39514))
+;;   (message "Expected: %s\n    Got:      %s" test-ans test-computed))
 
-(let* ((test-input    "#######
-#E.G#.#
-#.#G..#
-#G.#.G#
-#G..#.#
-#...E.#
-#######")
-       (test-computed (day15-part-1 test-input))
-       (test-ans      27755))
-  (message "Expected: %s\n    Got:      %s" test-ans test-computed))
+;; (let* ((test-input    "#######
+;; #E.G#.#
+;; #.#G..#
+;; #G.#.G#
+;; #G..#.#
+;; #...E.#
+;; #######")
+;;        (test-computed (day15-part-1 test-input))
+;;        (test-ans      27755))
+;;   (message "Expected: %s\n    Got:      %s" test-ans test-computed))
 
 (let* ((test-input    "#######
 #.E...#
@@ -354,28 +341,72 @@ Positions with ENEMIES on them can't be moved to."
        (test-ans      28944))
   (message "Expected: %s\n    Got:      %s" test-ans test-computed))
 
-(let* ((test-input    "#########
-#G......#
-#.E.#...#
-#..##..G#
-#...##..#
-#...#...#
-#.G...G.#
-#.....G.#
-#########")
-       (test-computed (day15-part-1 test-input))
-       (test-ans      18740))
-  (message "Expected: %s\n    Got:      %s" test-ans test-computed))
+;; (let* ((test-input    "#########
+;; #G......#
+;; #.E.#...#
+;; #..##..G#
+;; #...##..#
+;; #...#...#
+;; #.G...G.#
+;; #.....G.#
+;; #########")
+;;        (test-computed (day15-part-1 test-input))
+;;        (test-ans      18740))
+;;   (message "Expected: %s\n    Got:      %s" test-ans test-computed))
 
 ;; # PART 2:
 
+(defun copy-hash-table (table)
+  "Produce a copy of the given hash TABLE.
+
+Assumes a test of `equal'."
+  (cl-loop for key in (hash-table-keys table)
+     with result = (make-hash-table :test #'equal)
+     do (puthash key (gethash key table) result)
+     finally return result))
+
 (defun day15-part-2 (input-file)
   "Run my solution to part two of the problem on the input in INPUT-FILE."
-  )
+  (pcase (parse-map-and-units input-file)
+    (`(,map ,golden-elves ,golden-goblins)
+      (cl-loop for elf-power from 4 to 200
+         named main
+         with  elf-count = (length (hash-table-keys golden-elves))
+         for   elves     = (copy-hash-table golden-elves)
+         for   goblins   = (copy-hash-table golden-goblins)
+         do (cl-loop repeat 1000
+               named inner-simulation
+               with  round      = 0
+               for   early-exit = (tick map elves goblins elf-power)
+               when early-exit
+                 do (progn
+                      (message "Finished early on round: %s with Elf health: %s, Goblin health: %s"
+                               round
+                               (health-of-units elves)
+                               (health-of-units goblins))
+                      (message "Elves: %s\nGoblins: %s"
+                               (hash-table-values elves)
+                               (hash-table-values goblins))
+                      (let* ((elf-health    (health-of-units elves))
+                             (goblin-health (health-of-units goblins)))
+                        (if (eq elf-count (length (hash-table-keys elves)))
+                            (cl-return-from main (* round elf-health))
+                            (cl-return-from inner-simulation))))
+               do (cl-incf round)
+               finally return (format "No winner in %s rounds\n Elves: %s\n Goblins: %s"
+                                      round
+                                      (hash-table-values elves)
+                                      (hash-table-values goblins)))))))
 
-(let* ((test-input    "")
+(let* ((test-input    "#######
+#.E...#
+#.#..G#
+#.###.#
+#E#G#G#
+#...#G#
+#######")
        (test-computed (day15-part-2 test-input))
-       (test-ans      0))
+       (test-ans      6474))
   (message "Expected: %s\n    Got:      %s" test-ans test-computed))
 
 ;; Run the solution:
