@@ -142,61 +142,36 @@ Disallow searching back to SEARCHED squares."
   "Produce the best found head in HEADS which is in DESTINATIONS."
   (cl-remove-if-not (lambda (pos) (cl-member pos destinations :test #'equal)) heads))
 
-(defun backtrack (end lengths)
-  "Backtrack from END with the LENGTHS to coordinates found on the way."
-  (let* ((x       (car end))
-         (y       (cdr end))
-         (curr    (gethash end lengths))
-         (up-c    (cons x      (1- y)))
-         (left-c  (cons (1- x) y))
-         (right-c (cons (1+ x) y))
-         (down-c  (cons x      (1+ y)))
-         (up-d    (gethash up-c    lengths))
-         (left-d  (gethash left-c  lengths))
-         (right-d (gethash right-c lengths))
-         (down-d  (gethash down-c  lengths))
-         (up      (list up-d    (- curr (or up-d    -1000)) up-c))
-         (left    (list left-d  (- curr (or left-d  -1000)) left-c))
-         (right   (list right-d (- curr (or right-d -1000)) right-c))
-         (down    (list down-d  (- curr (or down-d  -1000)) down-c))
-         (nexts   (cl-remove-if-not (apply-partially #'eq 1)
-                                    (cl-remove-if #'null
-                                                  (list up left right down)
-                                                  :key #'car)
-                                    :key #'cadr))
-         (best    (thread-first nexts
-                    (cl-stable-sort #'< :key #'car)
-                    (car))))
-    (if (eq 0 (car best))
-        (list end)
-        (apply #'append (cl-mapcar (lambda (next) (backtrack (caddr next) lengths))
-                                   nexts)))))
-
 (defun shortest-distance (start map units enemies)
-  "Produce the next square from START to an enemy in shortest path on MAP.
+  "Produce the next square from START to an destination in shortest path on MAP.
 
 Destinations with UNITS on them can't be targets.
 
 Squares with ENEMIES on them can't be moved to."
-  (cl-loop
-     with distance     = 0
-     with destinations = (destinations enemies map units)
-     with best-lengths = (make-hash-table :test 'equal)
-     with searched     = (list start)
-     with heads        = searched
-     do (cl-mapc (lambda (coord) (puthash coord distance best-lengths)) heads)
-     do (setq heads    (expand heads map units enemies searched)
-              searched (append searched heads))
-     when (eq nil heads)
-       return nil
-     for did-find = (found-destination heads destinations)
-     when did-find
-       do (let* ((in-range-squares (best-found-squares heads destinations)))
-            (cl-mapc (lambda (square) (puthash square (1+ distance) best-lengths))
-                     in-range-squares)
-            (let* ((best-end (car (sort-coordinates in-range-squares))))
-              (cl-return (car (sort-coordinates (backtrack best-end best-lengths))))))
-     do (cl-incf distance)))
+  (cl-labels ((go-one-way (start map units enemies destinations)
+                (cl-loop
+                   with distance     = 0
+                   with best-lengths = (make-hash-table :test 'equal)
+                   with searched     = (list start)
+                   with heads        = searched
+                   initially do (let ((did-find (found-destination heads destinations)))
+                                  (when did-find
+                                    (let* ((in-range-squares (best-found-squares heads destinations)))
+                                      (cl-return (car (sort-coordinates in-range-squares))))))
+                   do (cl-mapc (lambda (coord) (puthash coord distance best-lengths)) heads)
+                   do (setq heads    (expand heads map units enemies searched)
+                            searched (append searched heads))
+                   when (eq nil heads)
+                     return nil
+                   for did-find = (found-destination heads destinations)
+                   when did-find
+                     do (let* ((in-range-squares (best-found-squares heads destinations)))
+                          (cl-return (car (sort-coordinates in-range-squares))))
+                   do (cl-incf distance))))
+    (let ((best-square-at-enemy (go-one-way start map units enemies
+                                            (destinations enemies map units))))
+      (go-one-way best-square-at-enemy map enemies units
+                  (available-moves start map units enemies)))))
 
 (defun move (position units map enemies)
   "Move the unit at POSITION in UNITS towards the closest reachable of ENEMIES on MAP.
