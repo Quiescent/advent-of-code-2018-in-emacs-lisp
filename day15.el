@@ -152,19 +152,21 @@ Squares with ENEMIES on them can't be moved to."
                     (null best-len))
              do (puthash pos path-len best-lengths))
      do (setq paths (cl-remove-if (lambda (path)
-                                    (let* ((len (length path))
+                                    (let* ((len  (length path))
                                            (head (car path))
                                            (best (gethash head best-lengths)))
                                       (> len best)))
                        paths))
      when (eq nil paths)
        return nil
-     for found = (thread-first
-                     (cl-remove-if-not (lambda (pos) (cl-member pos destinations :test #'equal))
-                                       paths :key #'car)
-                   (sort-paths-by-last-move))
-     when found
-       return (nth (- (length (car found)) 2) (car found))
+     for did-find = (cl-find-if (lambda (pos) (cl-member pos destinations :test #'equal))
+                       paths :key #'car)
+     when did-find
+       do (let* ((found (thread-first
+                            (cl-remove-if-not (lambda (pos) (cl-member pos destinations :test #'equal))
+                                              paths :key #'car)
+                          (sort-paths-by-last-move))))
+            (cl-return (nth (- (length (car found)) 2) (car found))))
      do (cl-incf distance)))
 
 (defun move (position units map enemies)
@@ -173,7 +175,7 @@ Squares with ENEMIES on them can't be moved to."
 Positions with ENEMIES on them can't be moved to."
   (let* ((unit-to-move   (gethash position units))
          (pos-to-move-to (progn
-                           (message "Computing shortest for: %s" position)
+                           ;; (message "Computing shortest for: %s" position)
                            (shortest-distance position map units enemies))))
     (when (not (null pos-to-move-to))
       (remhash position units)
