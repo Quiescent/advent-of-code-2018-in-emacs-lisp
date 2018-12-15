@@ -52,12 +52,12 @@ so that Emacs doesn't hang.")
 
 (defun sort-paths-by-first-move (paths)
   "Sort PATHS by their first move in reading order."
-  (thread-first (cl-sort paths #'< :key (lambda (path) (car (nth (- (length path) 2) path))))
+  (thread-first (cl-stable-sort paths #'< :key (lambda (path) (car (nth (- (length path) 2) path))))
     (cl-stable-sort #'< :key (lambda (path) (cdr (nth (- (length path) 2) path))))))
 
 (defun sort-paths-by-last-move (paths)
   "Sort PATHS by their first move in reading order."
-  (thread-first (cl-sort paths #'< :key (lambda (path) (caar path)))
+  (thread-first (cl-stable-sort paths #'< :key (lambda (path) (caar path)))
     (cl-stable-sort #'< :key (lambda (path) (cdar path)))))
 
 (defun sort-coordinates (coordinates)
@@ -74,13 +74,10 @@ Ties are broken at distance of 1 by health of unit in ENEMY-UNITS."
        with closest          = (car sorted-positions)
        with closest-distance = (manhattan-distance position closest)
        for  next-distance    = (manhattan-distance position enemy-position)
-       when (and (eq next-distance    1)
-                 (eq closest-distance 1)
-                 (< (cdr (gethash enemy-position enemy-units))
-                         (cdr (gethash closest enemy-units))))
-         do (setq closest          enemy-position
-                  closest-distance next-distance)
-       when (< next-distance closest-distance)
+       when (or (< next-distance closest-distance)
+                (and (eq next-distance 1)
+                     (< (cdr (gethash enemy-position enemy-units))
+                        (cdr (gethash closest        enemy-units)))))
          do (setq closest          enemy-position
                   closest-distance next-distance)
        finally return closest)))
@@ -92,7 +89,7 @@ Assume attack power of 3."
   (pcase (gethash position units)
     (`(,x . ,health)
       (progn
-                                        ;(message "%s -> %s" position (cons x (- health 3)))
+        ;;(message "%s -> %s" position (cons x (- health 3)))
         (if (<= health 3)
             (remhash position units)
             (puthash position (cons x (- health 3)) units))))))
@@ -140,8 +137,6 @@ Squares with ENEMIES on them can't be moved to."
                                         (sort-coordinates))
                  do (setq explored (append explored next-moves))
                  append (mapcar (lambda (next-pos) (cons next-pos path)) next-moves)))
-        ;; If I can't find a path then don't move... (might be wrong but
-        ;; the thing doesn't specify)  Will have to test to see.
      when (eq nil paths)
        return nil
      for found = (thread-first
@@ -155,75 +150,12 @@ Squares with ENEMIES on them can't be moved to."
   "Move the unit at POSITION in UNITS towards the closest reachable of ENEMIES on MAP.
 
 Positions with ENEMIES on them can't be moved to."
-  (let* ((unit-to-move (gethash position units)))
-    (let* ((pos-to-move-to (shortest-distance position map units enemies)))
-      (when (and (not  (null pos-to-move-to))
-                 (null (gethash pos-to-move-to units)))
-        (remhash position units)
-        (puthash pos-to-move-to unit-to-move units)
-        pos-to-move-to))))
-
-(defun make-move (map elves goblins position)
-  "Move..."
-  (let* ((in-elves   (gethash position elves))
-         (in-goblins (gethash position goblins)))
-    (if in-elves
-        (let* ((closest (closest-enemy position (hash-table-keys goblins) goblins)))
-          (when (null closest)
-            (cl-return-from detect-early-exit t))
-          (if (eq 1 (manhattan-distance closest position))
-              (progn
-                (message "%s attacks %s" position closest)
-                (attack closest goblins)
-                nil)
-              (let* ((new-pos (move position elves map goblins))
-                     (new-closest (closest-enemy new-pos (hash-table-keys goblins) goblins)))
-                (when (eq 1 (manhattan-distance closest new-pos))
-                  (message "%s attacks %s" new-pos new-closest)
-                  (attack new-closest goblins)
-                  nil))))
-        (when in-goblins
-          (let* ((closest (closest-enemy position (hash-table-keys elves) elves)))
-            (when (null closest)
-              (cl-return-from detect-early-exit t))
-            (if (eq 1 (manhattan-distance closest position))
-                (progn
-                  (message "%s attacks %s" position closest)
-                  (attack closest elves)
-                  nil)
-                (let* ((new-pos     (move position goblins map elves))
-                       (new-closest (closest-enemy new-pos (hash-table-keys elves) elves)))
-                  (when (eq 1 (manhattan-distance new-closest new-pos))
-                    (message "%s attacks %s" new-pos new-closest)
-                    (attack closest elves)
-                    nil))))))))
-
-;; (let* ((in-elves   (gethash position elves))
-;;                      (in-goblins (gethash position goblins)))
-;;                 (if in-elves
-;;                     (let* ((closest (closest-enemy position (hash-table-keys goblins) goblins)))
-;;                       (when (null closest)
-;;                         (cl-return-from detect-early-exit t))
-;;                       (if (eq 1 (manhattan-distance closest position))
-;;                           (progn
-;;                             (attack closest goblins)
-;;                             nil)
-;;                           (let ((new-pos (move position elves map goblins)))
-;;                             (when (eq 1 (manhattan-distance closest new-pos))
-;;                               (attack closest goblins)
-;;                               nil))))
-;;                     (when in-goblins
-;;                       (let* ((closest (closest-enemy position (hash-table-keys elves) elves)))
-;;                         (when (null closest)
-;;                           (cl-return-from detect-early-exit t))
-;;                         (if (eq 1 (manhattan-distance closest position))
-;;                             (progn
-;;                               (attack closest elves)
-;;                               nil)
-;;                             (let ((new-pos (move position goblins map elves)))
-;;                               (when (eq 1 (manhattan-distance closest new-pos))
-;;                                 (attack closest elves)
-;;                                 nil)))))))
+  (let* ((unit-to-move   (gethash position units))
+         (pos-to-move-to (shortest-distance position map units enemies)))
+    (when (not (null pos-to-move-to))
+      (remhash position units)
+      (puthash pos-to-move-to unit-to-move units)
+      pos-to-move-to)))
 
 (defun tick (map elves goblins)
   "Play a round of the simulation on MAP with ELVES and GOBLINS."
@@ -232,38 +164,30 @@ Positions with ENEMIES on them can't be moved to."
                           (sort-coordinates))))
     (cl-block detect-early-exit
       (mapc (lambda (position)
-              (let* ((in-elves   (gethash position elves))
-                     (in-goblins (gethash position goblins)))
-                (if in-elves
-                    (let* ((closest (closest-enemy position (hash-table-keys goblins) goblins)))
-                      (when (null closest)
-                        (cl-return-from detect-early-exit t))
-                      (if (eq 1 (manhattan-distance closest position))
-                          (progn
-                                        ;(message "%s attacks %s" position closest)
-                            (attack closest goblins)
-                            nil)
-                          (let* ((new-pos (move position elves map goblins))
-                                 (new-closest (and new-pos (closest-enemy new-pos (hash-table-keys goblins) goblins))))
-                            (when (and new-pos (eq 1 (manhattan-distance closest new-pos)))
-                                        ;(message "%s attacks %s" new-pos new-closest)
-                              (attack new-closest goblins)
-                              nil))))
-                    (when in-goblins
-                      (let* ((closest (closest-enemy position (hash-table-keys elves) elves)))
-                        (when (null closest)
-                          (cl-return-from detect-early-exit t))
-                        (if (eq 1 (manhattan-distance closest position))
-                            (progn
-                                        ;(message "%s attacks %s" position closest)
-                              (attack closest elves)
-                              nil)
-                            (let* ((new-pos     (move position goblins map elves))
-                                   (new-closest (and new-pos (closest-enemy new-pos (hash-table-keys elves) elves))))
-                              (when (and new-pos (eq 1 (manhattan-distance new-closest new-pos)))
-                                        ;(message "%s attacks %s" new-pos new-closest)
-                                (attack new-closest elves)
-                                nil))))))))
+              (let* ((in-elves        (gethash position elves))
+                     (in-goblins      (gethash position goblins))
+                     (units           (if in-elves elves   goblins))
+                     (enemies         (if in-elves goblins elves))
+                     (enemy-positions (hash-table-keys enemies)))
+                (when (or in-goblins in-elves)
+                  (let* ((closest (closest-enemy position enemy-positions enemies)))
+                    (when (null closest)
+                      (cl-return-from detect-early-exit t))
+                    (if (eq 1 (manhattan-distance closest position))
+                        (progn
+                          ;;(message "%s attacks %s" position closest)
+                          (attack closest enemies)
+                          nil)
+                        (let* ((new-pos     (move position units map enemies))
+                               (new-closest (and new-pos
+                                                 (closest-enemy new-pos
+                                                                enemy-positions
+                                                                enemies))))
+                          (when (and new-pos
+                                     (eq 1 (manhattan-distance new-closest new-pos)))
+                            ;;(message "%s attacks %s" new-pos new-closest)
+                            (attack new-closest enemies)
+                            nil)))))))
             all-positions)
       nil)))
 
@@ -305,8 +229,6 @@ Positions with ENEMIES on them can't be moved to."
                   (if (> elf-health 0)
                       (cl-return (* round elf-health))
                       (cl-return (* round goblin-health)))))
-         for goblins-all-dead = (hash-table-empty-p goblins)
-         for elves-all-dead   = (hash-table-empty-p elves)
          do (cl-incf round)
          do (message "After: %s rounds..." round)
          finally return (format "No winner in %s rounds\n Elves: %s\n Goblins: %s"
@@ -325,7 +247,9 @@ Positions with ENEMIES on them can't be moved to."
 
 ;; With latest adjustments: 228272
 
-;; Other example: 248848
+;; Latest: 230599
+;; with off by one (please...)
+;; 2591 * (89 + 1) = 233190 (wrong) :'(
 
 (let* ((test-input    "#######
 #E..G.#
