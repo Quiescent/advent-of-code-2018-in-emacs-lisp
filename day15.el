@@ -115,6 +115,14 @@ Squares on FRIENDLIES cant be destinations."
   (cl-loop for enemy-coord in (hash-table-keys enemies)
      append (available-moves enemy-coord map friendlies enemies)))
 
+(defun remove-paths-which-double-back (paths)
+  "Remove all paths in PATHS, for which they have duplicate points."
+  (cl-remove-if (lambda (path)
+                  (cl-some (lambda (coord)
+                             (> (cl-count coord path :test #'equal) 1))
+                           path))
+                paths))
+
 (defun shortest-distance (start map units enemies)
   "Produce the next square from START to an enemy in shortest path on MAP.
 
@@ -122,10 +130,10 @@ Destinations with UNITS on them can't be targets.
 
 Squares with ENEMIES on them can't be moved to."
   (cl-loop
+     with distance     = 0
      with destinations = (destinations enemies map units)
-     with explored  = (list start)
-     with paths     = (list explored)
-     do (sort-paths-by-first-move paths)
+     with best-lengths = (make-hash-table :test 'equal)
+     with paths        = (list (list start))
      do (setq paths
               (cl-loop for path in paths
                  for current-square = (car path)
@@ -133,10 +141,22 @@ Squares with ENEMIES on them can't be moved to."
                                                                      map
                                                                      units
                                                                      enemies)
-                                        (cl-set-difference explored :test #'equal)
-                                        (sort-coordinates))
-                 do (setq explored (append explored next-moves))
+                                        (cl-set-difference path :test #'equal))
                  append (mapcar (lambda (next-pos) (cons next-pos path)) next-moves)))
+     do (cl-loop for path in paths
+           for path-len = (length path)
+           for pos      = (car path)
+           for best-len = (gethash pos best-lengths)
+           when (or (and best-len
+                         (< path-len best-len))
+                    (null best-len))
+             do (puthash pos path-len best-lengths))
+     do (setq paths (cl-remove-if (lambda (path)
+                                    (let* ((len (length path))
+                                           (head (car path))
+                                           (best (gethash head best-lengths)))
+                                      (> len best)))
+                       paths))
      when (eq nil paths)
        return nil
      for found = (thread-first
@@ -144,14 +164,17 @@ Squares with ENEMIES on them can't be moved to."
                                        paths :key #'car)
                    (sort-paths-by-last-move))
      when found
-       return (nth (- (length (car found)) 2) (car found))))
+       return (nth (- (length (car found)) 2) (car found))
+     do (cl-incf distance)))
 
 (defun move (position units map enemies)
   "Move the unit at POSITION in UNITS towards the closest reachable of ENEMIES on MAP.
 
 Positions with ENEMIES on them can't be moved to."
   (let* ((unit-to-move   (gethash position units))
-         (pos-to-move-to (shortest-distance position map units enemies)))
+         (pos-to-move-to (progn
+                           (message "Computing shortest for: %s" position)
+                           (shortest-distance position map units enemies))))
     (when (not (null pos-to-move-to))
       (remhash position units)
       (puthash pos-to-move-to unit-to-move units)
@@ -348,3 +371,4 @@ Positions with ENEMIES on them can't be moved to."
 
 (provide 'day15)
 ;;; day15 ends here
+p
