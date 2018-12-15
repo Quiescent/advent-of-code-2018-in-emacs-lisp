@@ -95,8 +95,12 @@ Assume attack power of 3."
     (progn
       ;;(message "%s -> %s" position (cons x (- health 3)))
       (if (<= health 3)
-          (remhash position units)
-          (puthash position (- health 3) units)))))
+          (progn
+            (remhash position units)
+            t)
+          (progn
+            (puthash position (- health 3) units)
+            nil)))))
 
 (defun available-moves (pos map units enemies)
   "Produce the available moves from POS in MAP.
@@ -190,25 +194,25 @@ Positions with ENEMIES on them can't be moved to."
   (let* ((all-positions (thread-first (append (hash-table-keys elves)
                                               (hash-table-keys goblins))
                           (sort-coordinates))))
-    (cl-block detect-early-exit
-      (mapc (lambda (position)
-              (let* ((in-elves        (gethash position elves))
-                     (in-goblins      (gethash position goblins))
-                     (units           (if in-elves elves   goblins))
-                     (enemies         (if in-elves goblins elves))
-                     (enemy-positions (hash-table-keys enemies)))
-                (when (or in-goblins in-elves)
-                  (when (null enemy-positions)
-                    (cl-return-from detect-early-exit t))
-                  (let* ((closest (closest-enemy position enemy-positions enemies)))
-                    (when (not (eq 1 (manhattan-distance closest position)))
-                      (setq position (or (move position units map enemies) position))
-                      (setq closest (closest-enemy position enemy-positions enemies)))
-                    (when (and position (eq 1 (manhattan-distance closest position)))
-                      (attack closest enemies))
-                    nil))))
-            all-positions)
-      nil)))
+    (cl-loop
+       while all-positions
+       for position        = (pop all-positions)
+       for in-elves        = (gethash position elves)
+       for in-goblins      = (gethash position goblins)
+       for units           = (if in-elves elves   goblins)
+       for enemies         = (if in-elves goblins elves)
+       for enemy-positions = (hash-table-keys enemies)
+       when (or in-goblins in-elves)
+         do (progn
+              (when (null enemy-positions)
+                (cl-return t))
+              (let* ((closest (closest-enemy position enemy-positions enemies)))
+                (when (not (eq 1 (manhattan-distance closest position)))
+                  (setq position (or (move position units map enemies) position))
+                  (setq closest (closest-enemy position enemy-positions enemies)))
+                (when (and position (eq 1 (manhattan-distance closest position)))
+                  (when (attack closest enemies)
+                    (setq all-positions (remove closest all-positions)))))))))
 
 (defun draw-map (map elves goblins)
   "Drap MAP with ELVES and GOBLINS on it."
@@ -275,18 +279,18 @@ Positions with ENEMIES on them can't be moved to."
 ;; Wrong: 227744 (curiously this is the same answer as is given by two
 ;;   top 100 solutions)
 
-;; (let* ((test-input    "#########
-;; #G..G..G#
-;; #.......#
-;; #.......#
-;; #G..E..G#
-;; #.......#
-;; #.......#
-;; #G..G..G#
-;; #########")
-;;        (test-computed (day15-part-1 test-input))
-;;        (test-ans      nil))
-;;   (message "Expected: %s\n    Got:      %s" test-ans test-computed))
+(let* ((test-input    "#########
+#G..G..G#
+#.......#
+#.......#
+#G..E..G#
+#.......#
+#.......#
+#G..G..G#
+#########")
+       (test-computed (day15-part-1 test-input))
+       (test-ans      nil))
+  (message "Expected: %s\n    Got:      %s" test-ans test-computed))
 
 ;; (let* ((test-input    "######
 ;; #.G..#
@@ -306,62 +310,62 @@ Positions with ENEMIES on them can't be moved to."
 ;;        (test-ans      nil))
 ;;   (message "Expected: %s\n    Got:      %s" test-ans test-computed))
 
-;; (let* ((test-input    "#######
-;; #.G...#
-;; #...EG#
-;; #.#.#G#
-;; #..G#E#
-;; #.....#
-;; #######")
-;;        (test-computed (day15-part-1 test-input))
-;;        (test-ans      27730))
-;;   (message "Expected: %s\n    Got:      %s" test-ans test-computed))
+(let* ((test-input    "#######
+#.G...#
+#...EG#
+#.#.#G#
+#..G#E#
+#.....#
+#######")
+       (test-computed (day15-part-1 test-input))
+       (test-ans      27730))
+  (message "Expected: %s\n    Got:      %s" test-ans test-computed))
 
-;; (let* ((test-input    "#######
-;; #E..EG#
-;; #.#G.E#
-;; #E.##E#
-;; #G..#.#
-;; #..E#.#
-;; #######")
-;;        (test-computed (day15-part-1 test-input))
-;;        (test-ans      39514))
-;;   (message "Expected: %s\n    Got:      %s" test-ans test-computed))
+(let* ((test-input    "#######
+#E..EG#
+#.#G.E#
+#E.##E#
+#G..#.#
+#..E#.#
+#######")
+       (test-computed (day15-part-1 test-input))
+       (test-ans      39514))
+  (message "Expected: %s\n    Got:      %s" test-ans test-computed))
 
-;; (let* ((test-input    "#######
-;; #E.G#.#
-;; #.#G..#
-;; #G.#.G#
-;; #G..#.#
-;; #...E.#
-;; #######")
-;;        (test-computed (day15-part-1 test-input))
-;;        (test-ans      27755))
-;;   (message "Expected: %s\n    Got:      %s" test-ans test-computed))
+(let* ((test-input    "#######
+#E.G#.#
+#.#G..#
+#G.#.G#
+#G..#.#
+#...E.#
+#######")
+       (test-computed (day15-part-1 test-input))
+       (test-ans      27755))
+  (message "Expected: %s\n    Got:      %s" test-ans test-computed))
 
-;; (let* ((test-input    "#######
-;; #.E...#
-;; #.#..G#
-;; #.###.#
-;; #E#G#G#
-;; #...#G#
-;; #######")
-;;        (test-computed (day15-part-1 test-input))
-;;        (test-ans      28944))
-;;   (message "Expected: %s\n    Got:      %s" test-ans test-computed))
+(let* ((test-input    "#######
+#.E...#
+#.#..G#
+#.###.#
+#E#G#G#
+#...#G#
+#######")
+       (test-computed (day15-part-1 test-input))
+       (test-ans      28944))
+  (message "Expected: %s\n    Got:      %s" test-ans test-computed))
 
-;; (let* ((test-input    "#########
-;; #G......#
-;; #.E.#...#
-;; #..##..G#
-;; #...##..#
-;; #...#...#
-;; #.G...G.#
-;; #.....G.#
-;; #########")
-;;        (test-computed (day15-part-1 test-input))
-;;        (test-ans      18740))
-;;   (message "Expected: %s\n    Got:      %s" test-ans test-computed))
+(let* ((test-input    "#########
+#G......#
+#.E.#...#
+#..##..G#
+#...##..#
+#...#...#
+#.G...G.#
+#.....G.#
+#########")
+       (test-computed (day15-part-1 test-input))
+       (test-ans      18740))
+  (message "Expected: %s\n    Got:      %s" test-ans test-computed))
 
 ;; # PART 2:
 
