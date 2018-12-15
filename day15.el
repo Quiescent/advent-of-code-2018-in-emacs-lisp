@@ -20,8 +20,8 @@ so that Emacs doesn't hang.")
   (let* ((lines (split-string input-file "\n" t " ")))
     (cl-loop for line being the elements of lines
        using (index y)
-       with elves   = (make-hash-table :test 'equal)
-       with goblins = (make-hash-table :test 'equal)
+       with elves   = (make-hash-table :test #'equal)
+       with goblins = (make-hash-table :test #'equal)
        with map     = (make-vector (length lines) nil)
        do (aset map y (make-vector (length line) t))
        do (cl-loop for char being the elements of line
@@ -31,17 +31,17 @@ so that Emacs doesn't hang.")
                   (?. (aset (aref map y) x nil))
                   (?G (progn
                         (aset (aref map y) x nil)
-                        (puthash (cons x y) (cons 3 200) goblins)))
+                        (puthash (cons x y) 200 goblins)))
                   (?E (progn
                         (aset (aref map y) x nil)
-                        (puthash (cons x y) (cons 3 200) elves)))))
+                        (puthash (cons x y) 200 elves)))))
        finally return (list map elves goblins))))
 
 (require 'subr-x)
 
 (defun health-of-units (units)
   "Produce the remaining health of UNITS."
-  (apply #'+ (mapcar #'cdr (hash-table-values units))))
+  (apply #'+ (hash-table-values units)))
 
 (defun manhattan-distance (this that)
   "Produce the manhattan distance between THIS and THAT."
@@ -52,7 +52,7 @@ so that Emacs doesn't hang.")
 
 (defun sort-coordinates (coordinates)
   "Produce the given COORDINATES sorted by top to bottom left to right."
-  (thread-first (cl-stable-sort coordinates #'< :key #'car)
+  (thread-first (cl-stable-sort (cl-subseq coordinates 0) #'< :key #'car)
     (cl-stable-sort #'< :key #'cdr)))
 
 (defun closest-enemy (position enemy-positions enemy-units)
@@ -66,8 +66,8 @@ Ties are broken at distance of 1 by health of unit in ENEMY-UNITS."
        for  next-distance    = (manhattan-distance position enemy-position)
        when (or (< next-distance closest-distance)
                 (and (eq next-distance 1)
-                     (< (cdr (gethash enemy-position enemy-units))
-                        (cdr (gethash closest        enemy-units)))))
+                     (< (gethash enemy-position enemy-units)
+                        (gethash closest        enemy-units))))
          do (setq closest          enemy-position
                   closest-distance next-distance)
        finally return closest)))
@@ -80,10 +80,10 @@ Ties are broken at distance of 1 by health of unit in ENEMY-UNITS."
                          (cons 1 1)))
        (enemies         (progn
                           (let* ((table (make-hash-table :test 'equal)))
-                            (puthash (cons 2 2) (cons 3 3) table)
-                            (puthash (cons 0 2) (cons 3 5) table)
-                            (puthash (cons 1 3) (cons 3 3) table)
-                            (puthash (cons 1 1) (cons 3 4) table)
+                            (puthash (cons 2 2) 3 table)
+                            (puthash (cons 0 2) 5 table)
+                            (puthash (cons 1 3) 3 table)
+                            (puthash (cons 1 1) 4 table)
                             table))))
   (closest-enemy position enemy-positions enemies))
 
@@ -91,13 +91,12 @@ Ties are broken at distance of 1 by health of unit in ENEMY-UNITS."
   "Attack the unit at POSITION in UNITS.
 
 Assume attack power of 3."
-  (pcase (gethash position units)
-    (`(,x . ,health)
-      (progn
-        ;;(message "%s -> %s" position (cons x (- health 3)))
-        (if (<= health 3)
-            (remhash position units)
-            (puthash position (cons x (- health 3)) units))))))
+  (let ((health (gethash position units)))
+    (progn
+      ;;(message "%s -> %s" position (cons x (- health 3)))
+      (if (<= health 3)
+          (remhash position units)
+          (puthash position (- health 3) units)))))
 
 (defun available-moves (pos map units enemies)
   "Produce the available moves from POS in MAP.
@@ -272,6 +271,9 @@ Positions with ENEMIES on them can't be moved to."
 ;; Latest: 230599
 ;; with off by one (please...)
 ;; 2591 * (89 + 1) = 233190 (wrong) :'(
+
+;; Wrong: 227744 (curiously this is the same answer as is given by two
+;;   top 100 solutions)
 
 ;; (let* ((test-input    "#########
 ;; #G..G..G#
