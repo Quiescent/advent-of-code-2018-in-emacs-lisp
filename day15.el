@@ -50,19 +50,9 @@ so that Emacs doesn't hang.")
       (+ (abs (- this-x that-x))
          (abs (- this-y that-y))))))
 
-(defun sort-paths-by-first-move (paths)
-  "Sort PATHS by their first move in reading order."
-  (thread-first (cl-stable-sort paths #'< :key (lambda (path) (car (nth (- (length path) 2) path))))
-    (cl-stable-sort #'< :key (lambda (path) (cdr (nth (- (length path) 2) path))))))
-
-(defun sort-paths-by-last-move (paths)
-  "Sort PATHS by their first move in reading order."
-  (thread-first (cl-stable-sort paths #'< :key (lambda (path) (caar path)))
-    (cl-stable-sort #'< :key (lambda (path) (cdar path)))))
-
 (defun sort-coordinates (coordinates)
   "Produce the given COORDINATES sorted by top to bottom left to right."
-  (thread-first (cl-sort coordinates #'< :key #'car)
+  (thread-first (cl-stable-sort coordinates #'< :key #'car)
     (cl-stable-sort #'< :key #'cdr)))
 
 (defun closest-enemy (position enemy-positions enemy-units)
@@ -81,6 +71,21 @@ Ties are broken at distance of 1 by health of unit in ENEMY-UNITS."
          do (setq closest          enemy-position
                   closest-distance next-distance)
        finally return closest)))
+
+(let* ((position        (cons 1 2))
+       (enemy-positions (list
+                         ;; (cons 2 2)
+                         (cons 0 2)
+                         (cons 1 3)
+                         (cons 1 1)))
+       (enemies         (progn
+                          (let* ((table (make-hash-table :test 'equal)))
+                            (puthash (cons 2 2) (cons 3 3) table)
+                            (puthash (cons 0 2) (cons 3 3) table)
+                            (puthash (cons 1 3) (cons 3 3) table)
+                            (puthash (cons 1 1) (cons 3 4) table)
+                            table))))
+  (closest-enemy position enemy-positions enemies))
 
 (defun attack (position units)
   "Attack the unit at POSITION in UNITS.
@@ -115,13 +120,57 @@ Squares on FRIENDLIES cant be destinations."
   (cl-loop for enemy-coord in (hash-table-keys enemies)
      append (available-moves enemy-coord map friendlies enemies)))
 
-(defun remove-paths-which-double-back (paths)
-  "Remove all paths in PATHS, for which they have duplicate points."
-  (cl-remove-if (lambda (path)
-                  (cl-some (lambda (coord)
-                             (> (cl-count coord path :test #'equal) 1))
-                           path))
-                paths))
+(defun expand (heads map units enemies searched)
+  "Expand the search from HEADS in MAP avoiding UNITS and ENEMIES.
+
+Disallow searching back to SEARCHED squares."
+  (cl-remove-duplicates
+   (cl-loop for head in heads
+      for next-moves = (thread-first (available-moves head
+                                                      map
+                                                      units
+                                                      enemies)
+                         (cl-set-difference searched :test #'equal))
+      append next-moves)
+   :test #'equal))
+
+(defun found-destination (heads destinations)
+  "Produce t if one a head in HEADS is in DESTINATIONS."
+  (cl-find-if (lambda (head) (cl-member head destinations :test #'equal)) heads))
+
+(defun best-found-squares (heads destinations)
+  "Produce the best found head in HEADS which is in DESTINATIONS."
+  (cl-remove-if-not (lambda (pos) (cl-member pos destinations :test #'equal)) heads))
+
+(defun backtrack (end lengths)
+  "Backtrack from END with the LENGTHS to coordinates found on the way."
+  (let* ((x       (car end))
+         (y       (cdr end))
+         (curr    (gethash end lengths))
+         (up-c    (cons x      (1- y)))
+         (left-c  (cons (1- x) y))
+         (right-c (cons (1+ x) y))
+         (down-c  (cons x      (1+ y)))
+         (up-d    (gethash up-c    lengths))
+         (left-d  (gethash left-c  lengths))
+         (right-d (gethash right-c lengths))
+         (down-d  (gethash down-c  lengths))
+         (up      (list up-d    (- curr (or up-d    -1000)) up-c))
+         (left    (list left-d  (- curr (or left-d  -1000)) left-c))
+         (right   (list right-d (- curr (or right-d -1000)) right-c))
+         (down    (list down-d  (- curr (or down-d  -1000)) down-c))
+         (nexts   (cl-remove-if-not (apply-partially #'eq 1)
+                                    (cl-remove-if #'null
+                                                  (list up left right down)
+                                                  :key #'car)
+                                    :key #'cadr))
+         (best    (thread-first nexts
+                    (cl-stable-sort #'< :key #'car)
+                    (car))))
+    (if (eq 0 (car best))
+        (list end)
+        (apply #'append (cl-mapcar (lambda (next) (backtrack (caddr next) lengths))
+                                   nexts)))))
 
 (defun shortest-distance (start map units enemies)
   "Produce the next square from START to an enemy in shortest path on MAP.
@@ -133,40 +182,20 @@ Squares with ENEMIES on them can't be moved to."
      with distance     = 0
      with destinations = (destinations enemies map units)
      with best-lengths = (make-hash-table :test 'equal)
-     with paths        = (list (list start))
-     do (setq paths
-              (cl-loop for path in paths
-                 for current-square = (car path)
-                 for next-moves     = (thread-first (available-moves current-square
-                                                                     map
-                                                                     units
-                                                                     enemies)
-                                        (cl-set-difference path :test #'equal))
-                 append (mapcar (lambda (next-pos) (cons next-pos path)) next-moves)))
-     do (cl-loop for path in paths
-           for path-len = (length path)
-           for pos      = (car path)
-           for best-len = (gethash pos best-lengths)
-           when (or (and best-len
-                         (< path-len best-len))
-                    (null best-len))
-             do (puthash pos path-len best-lengths))
-     do (setq paths (cl-remove-if (lambda (path)
-                                    (let* ((len  (length path))
-                                           (head (car path))
-                                           (best (gethash head best-lengths)))
-                                      (> len best)))
-                       paths))
-     when (eq nil paths)
+     with searched     = (list start)
+     with heads        = searched
+     do (cl-mapc (lambda (coord) (puthash coord distance best-lengths)) heads)
+     do (setq heads    (expand heads map units enemies searched)
+              searched (append searched heads))
+     when (eq nil heads)
        return nil
-     for did-find = (cl-find-if (lambda (pos) (cl-member pos destinations :test #'equal))
-                       paths :key #'car)
+     for did-find = (found-destination heads destinations)
      when did-find
-       do (let* ((found (thread-first
-                            (cl-remove-if-not (lambda (pos) (cl-member pos destinations :test #'equal))
-                                              paths :key #'car)
-                          (sort-paths-by-last-move))))
-            (cl-return (nth (- (length (car found)) 2) (car found))))
+       do (let* ((in-range-squares (best-found-squares heads destinations)))
+            (cl-mapc (lambda (square) (puthash square (1+ distance) best-lengths))
+                     in-range-squares)
+            (let* ((best-end (car (sort-coordinates in-range-squares))))
+              (cl-return (car (sort-coordinates (backtrack best-end best-lengths))))))
      do (cl-incf distance)))
 
 (defun move (position units map enemies)
@@ -240,6 +269,8 @@ Positions with ENEMIES on them can't be moved to."
          with round = 0
          do (draw-map map elves goblins)
          for early-exit = (tick map elves goblins)
+         ;; do (message "Elves: %s"   (hash-table-values elves))
+         ;; do (message "Goblins: %s" (hash-table-values goblins))
          when early-exit
            do (progn
                 (message "Finished early on round: %s with Elf health: %s, Goblin health: %s"
@@ -275,6 +306,15 @@ Positions with ENEMIES on them can't be moved to."
 ;; Latest: 230599
 ;; with off by one (please...)
 ;; 2591 * (89 + 1) = 233190 (wrong) :'(
+
+(let* ((test-input    "######
+#.G..#
+#...E#
+#E...#
+######")
+       (test-computed (day15-part-1 test-input))
+       (test-ans      nil))
+  (message "Expected: %s\n    Got:      %s" test-ans test-computed))
 
 (let* ((test-input    "#######
 #E..G.#
@@ -373,4 +413,3 @@ Positions with ENEMIES on them can't be moved to."
 
 (provide 'day15)
 ;;; day15 ends here
-p
