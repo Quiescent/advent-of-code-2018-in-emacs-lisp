@@ -79,24 +79,13 @@ so that Emacs doesn't hang.")
                                                  (cl-return l))))))))
       (while (not (or fell-right fell-left))
         (fill-row x y)
-        (when (or (null left-edge) (null right-edge))
-          (print-map map water))
-        (message "Filling row at %s, %s with edges: %s %s"
-                 (- x min-x)
-                 (- y min-y)
-                 (- left-edge min-x)
-                 (- right-edge min-x))
         (when (not (or fell-right fell-left))
-          (when (or (null left-edge) (null right-edge))
-            (print-map map water))
           (cl-loop for l from left-edge to right-edge
-             do (puthash (cons l y) t water))
+             do (puthash (cons l y) t water)
+             do (puthash (cons l y) t filled-tracker))
           (cl-decf y))))
-    (message "Done")
     (let* ((start (if fell-left  (1+ left-edge)  left-edge))
            (end   (if fell-right (1- right-edge) right-edge)))
-      (when (or (null left-edge) (null right-edge))
-        (print-map map water))
       (cl-loop for l from start to end
          do (puthash (cons l y) t water)))
     (and fell-left  (trace left-edge  y map water))
@@ -107,25 +96,22 @@ so that Emacs doesn't hang.")
   "Trace the path of the water from X Y in MAP.
 
 Fill in blocks on WATER as we go."
-  (progn
-    (message "Tracing from %s, %s" (- x min-x) (- y min-y))
-    (if (or (> y max-y)
-            (gethash (cons x y) water))
-        water
-        (while (let* ((coord-below (cons x (1+ y))))
-                 (and (not (or (gethash coord-below map)
-                               (gethash coord-below water)))
-                      (not (> y max-y))))
+  (if (or (> y max-y)
+          (gethash (cons x y) water))
+      water
+      (while (let* ((coord-below (cons x (1+ y))))
+               (and (not (or (gethash coord-below map)
+                             (gethash coord-below water)))
+                    (not (> y max-y))))
+        (puthash (cons x y) t water)
+        (cl-incf y))
+      (progn
+        (when (not (> y max-y))
           (puthash (cons x y) t water)
-          (cl-incf y)
-          (message "Tracing from %s, %s" (- x min-x) (- y min-y)))
-        (progn
-          (when (not (> y max-y))
-            (puthash (cons x y) t water)
-            (if (gethash (cons x (1+ y)) water)
-                (fill x (+ 2 y) map water)
-                (fill x y map water)))
-          water))))
+          (if (gethash (cons x (1+ y)) water)
+              (fill x (+ 2 y) map water)
+              (fill x y map water)))
+        water)))
 
 (defun print-map (map water)
   "Print MAP with WATER overlaid."
@@ -144,7 +130,8 @@ Fill in blocks on WATER as we go."
 
 (defun day17-part-1 (input-file)
   "Run my solution to part one of the problem on the input in INPUT-FILE."
-  (let* ((map   (cl-reduce #'place-line-of-clay
+  (let* ((filled-tracker (make-hash-table :test #'equal))
+         (map   (cl-reduce #'place-line-of-clay
                            (split-string input-file "\n" t " ")
                            :initial-value (make-hash-table :test #'equal)))
          (max-y (thread-last (hash-table-keys map)
@@ -168,12 +155,10 @@ Fill in blocks on WATER as we go."
          (water (make-hash-table :test #'equal))
          (max-lisp-eval-depth 100000)
          (max-specpdl-size    100000))
-    (let ((result (trace 500 0 map water)))
-      (print-map map water)
-      (thread-last result
-        (hash-table-keys)
-        (cl-remove-if (lambda (key) (or (< (cdr key) min-y) (> (cdr key) max-y))))
-        (length)))))
+    (thread-last (trace 500 0 map water)
+      (hash-table-keys)
+      (cl-remove-if (lambda (key) (or (< (cdr key) min-y) (> (cdr key) max-y))))
+      (length))))
 
 ;; Too low: 3616
 
@@ -195,8 +180,36 @@ y=13, x=498..504")
 
 (defun day17-part-2 (input-file)
   "Run my solution to part two of the problem on the input in INPUT-FILE."
-  (let* ((filled-tracker (make-hash-table :test #'equal)))
-    (day17-part-1 input-file)))
+  (let* ((filled-tracker (make-hash-table :test #'equal))
+         (map   (cl-reduce #'place-line-of-clay
+                           (split-string input-file "\n" t " ")
+                           :initial-value (make-hash-table :test #'equal)))
+         (max-y (thread-last (hash-table-keys map)
+                  (mapcar #'cdr)
+                  (funcall (lambda (seq) (cl-sort seq #'>)))
+                  (car)))
+         (min-y (thread-last (hash-table-keys map)
+                  (mapcar #'cdr)
+                  (funcall (lambda (seq) (cl-sort seq #'<)))
+                  (car)))
+         (max-x (thread-last (hash-table-keys map)
+                  (mapcar #'car)
+                  (funcall (lambda (seq) (cl-sort seq #'>)))
+                  (car)
+                  (+ 2)))
+         (min-x (thread-last (hash-table-keys map)
+                  (mapcar #'car)
+                  (funcall (lambda (seq) (cl-sort seq #'<)))
+                  (car)
+                  (+ -2)))
+         (water (make-hash-table :test #'equal))
+         (max-lisp-eval-depth 100000)
+         (max-specpdl-size    100000))
+    (trace 500 0 map water)
+    (thread-last filled-tracker
+      (hash-table-keys)
+      (cl-remove-if (lambda (key) (or (< (cdr key) min-y) (> (cdr key) max-y))))
+      (length))))
 
 (let* ((test-input    "x=495, y=2..7
 y=7, x=495..501
