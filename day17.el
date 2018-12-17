@@ -113,19 +113,23 @@ Fill in blocks on WATER as we go."
               (fill x y map water)))
         water)))
 
-(defun print-map (map water)
-  "Print MAP with WATER overlaid."
+(defun print-map (map water filled)
+  "Print MAP with WATER overlaid and FILLED set to '~'."
   (progn
     (cl-loop for y from min-y to max-y
        do (cl-loop for x from min-x to max-x
-             for is-water = (gethash (cons x y) water)
-             for is-clay  = (gethash (cons x y) map)
+             for coord     = (cons x y)
+             for is-water  = (gethash coord water)
+             for is-clay   = (gethash coord map)
+             for is-filled = (gethash coord filled)
              when is-clay
                do (princ "#")
-             when is-water
-               do (princ "w")
+             when (and is-water (not is-filled))
+               do (princ "|")
+             when is-filled
+               do (princ "~")
              when (not (or is-water is-clay))
-               do (princ " "))
+               do (princ "."))
        do (princ "\n"))))
 
 (defun day17-part-1 (input-file)
@@ -206,6 +210,7 @@ y=13, x=498..504")
          (max-lisp-eval-depth 100000)
          (max-specpdl-size    100000))
     (trace 500 0 map water)
+    (print-map map water filled-tracker)
     (thread-last filled-tracker
       (hash-table-keys)
       (cl-remove-if (lambda (key) (or (< (cdr key) min-y) (> (cdr key) max-y))))
