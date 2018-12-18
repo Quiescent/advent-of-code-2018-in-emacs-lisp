@@ -20,34 +20,6 @@ so that Emacs doesn't hang.")
   (cl-map 'vector (lambda (line) (cl-map 'vector #'identity line))
           (split-string input-file "\n" t " ")))
 
-(defun coordinates-around (x y)
-  "Produce the coordinates around coordinate X, Y."
-  `((,(1+ x) ,y)
-    (,(1+ x) ,(1+ y))
-    (,x      ,(1+ y))
-    (,(1- x) ,(1+ y))
-    (,(1- x) ,y)
-    (,(1- x) ,(1- y))
-    (,x      ,(1- y))
-    (,(1+ x) ,(1- y))))
-
-(require 'subr-x)
-
-(defun squares-around (map x y)
-  "Produce the squares in MAP around coordinate X, Y."
-  (let ((dim-x (length (aref map 0)))
-        (dim-y (length map)))
-    (thread-last (cl-remove-if (pcase-lambda (`(,other-x ,other-y))
-                                   (or (>= other-x dim-x)
-                                       (< other-x 0)
-                                       (>= other-y dim-y)
-                                       (< other-y 0)))
-                               (coordinates-around x y))
-      (funcall (lambda (coords)
-                 (cl-mapcar (pcase-lambda (`(,other-x ,other-y))
-                                (aref (aref map other-y) other-x))
-                            coords))))))
-
 (defun transform (map x y)
   "Produce the new square to place into MAP at X, Y."
   (let* ((surrounding (squares-around map x y)))
@@ -59,21 +31,39 @@ so that Emacs doesn't hang.")
               ?#
               ?.)))))
 
-(require 'seq)
+(defun efficient-transform (map x y)
+  "Efficiently transform the square in MAP at X, Y."
+  (cl-loop for x-iter from (1- x) to (1+ x)
+     with dim-x        = (length (aref map 0))
+     with dim-y        = (length map)
+     with lumber-count = 0
+     with mill-count   = 0
+     do (cl-loop for y-iter from (1- y) to (1+ y)
+           when (and (not (and (eq x-iter x)
+                               (eq y-iter y)))
+                     (not (or (>= x-iter dim-x)
+                              (< x-iter 0)
+                              (>= y-iter dim-y)
+                              (< y-iter 0))))
+             do (pcase (aref (aref map y-iter) x-iter)
+                  (?| (cl-incf lumber-count))
+                  (?# (cl-incf mill-count))))
+     finally return (pcase (aref (aref map y) x)
+                      (?. (if (>= lumber-count 3) ?| ?.))
+                      (?| (if (>= mill-count   3) ?# ?|))
+                      (?# (if (and (>= mill-count   1)
+                                   (>= lumber-count 1))
+                              ?#
+                              ?.)))))
 
-(defun to-matrix (map)
-  "Turn MAP as list of lists into a matrix."
-  (cl-map 'vector
-          (lambda (row) (cl-map 'vector #'identity row))
-          map))
+(defun tick-to (map dest)
+  "Produce the new state for MAP.
 
-(defun tick (map)
-  "Produce the new state for MAP."
-  (thread-last (seq-map-indexed (lambda (row y)
-                                  (seq-map-indexed (lambda (_ x) (transform map x y))
-                                                   row))
-                                map)
-    (to-matrix)))
+Put the result into DEST."
+  (cl-loop for y from 0 below (length map)
+     for row = (aref map y)
+     do (cl-loop for x from 0 below (length row)
+           do (aset (aref dest y) x (efficient-transform map x y)))))
 
 (defun print-map (map)
   "Print MAP."
@@ -84,8 +74,13 @@ so that Emacs doesn't hang.")
 
 (defun day18-part-1 (input-file)
   "Run my solution to part one of the problem on the input in INPUT-FILE."
-  (let ((map (parse-grid input-file)))
-    (cl-loop repeat 10 do (setq map (tick map))
+  (let ((map  (parse-grid input-file))
+        (dest (parse-grid input-file)))
+    (cl-loop repeat 10
+       do (tick-to map dest)
+       for temp = map
+       do (setq map  dest
+                dest temp)
        finally return (progn
                         (print-map map)
                         (* (apply #'+ (cl-map 'list (lambda (row) (cl-count ?# row)) map))
@@ -107,19 +102,49 @@ so that Emacs doesn't hang.")
 
 ;; # PART 2:
 
+(defun count-resources (map)
+  "Count the resources on MAP."
+  (* (apply #'+ (cl-map 'list (lambda (row) (cl-count ?# row)) map))
+     (apply #'+ (cl-map 'list (lambda (row) (cl-count ?| row)) map))))
+
 (defun day18-part-2 (input-file)
   "Run my solution to part two of the problem on the input in INPUT-FILE."
-  (let ((map (parse-grid input-file)))
-    (cl-loop repeat 1000000000 do (setq map (tick map))
+  (let ((map  (parse-grid input-file))
+        (dest (parse-grid input-file)))
+    (cl-loop repeat 1000
+       do (tick-to map dest)
+       for temp = map
+       do (setq map  dest
+                dest temp)
+       finally return (count-resources map))))
+
+;; Too high: 221676
+;; Correct: 215404
+
+;; Protected for profiling...  Run the inner form.
+(when nil
+  (let* ((input-file ".#.#...|#.
+.....#|##|
+.|..|...#.
+..|#.....#
+#.#|||#|#|
+...#.||...
+.|....|...
+||...#|.#|
+|.||||..|.
+...#.|..|.")
+         (map  (parse-grid input-file))
+         (dest (parse-grid input-file)))
+    (cl-loop repeat 1000
+       do (tick-to map dest)
+       for temp = map
+       do (setq map  dest
+                dest temp)
        finally return (progn
                         (print-map map)
                         (* (apply #'+ (cl-map 'list (lambda (row) (cl-count ?# row)) map))
-                           (apply #'+ (cl-map 'list (lambda (row) (cl-count ?| row)) map)))))))
-
-(let* ((test-input    "")
-       (test-computed (day18-part-2 test-input))
-       (test-ans      0))
-  (message "Expected: %s\n    Got:      %s" test-ans test-computed))
+                           (apply #'+ (cl-map 'list (lambda (row) (cl-count ?| row)) map)))))
+    (print-map map)))
 
 ;; Run the solution:
 
