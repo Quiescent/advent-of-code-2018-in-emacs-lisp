@@ -116,7 +116,7 @@ so that Emacs doesn't hang.")
 (defun remove-slower (search-states found-state)
   "Remove states from SEARCH-STATES whose time cannot be better than FOUND-STATE."
   (if found-state
-      (cl-remove-if (lambda (search-state) (> (car search-state)
+      (cl-delete-if (lambda (search-state) (> (car search-state)
                                               (car found-state)))
                     search-states)
       search-states))
@@ -139,13 +139,13 @@ The target is at TARGET-COORD."
 (defun adjacent-coords (coord)
   "Produce the coordinates around COORD."
   (pcase coord
-    (`(,x . ,y) (cl-remove nil
-                           (list (when (> x 0)
-                                   (cons (1- x) y))
-                                 (when (> y 0)
-                                   (cons x      (1- y)))
-                                 (cons (1+ x) y)
-                                 (cons x      (1+ y)))))))
+    (`(,x . ,y) (delq nil
+                      (list (when (> x 0)
+                              (cons (1- x) y))
+                            (when (> y 0)
+                              (cons x      (1- y)))
+                            (cons (1+ x) y)
+                            (cons x      (1+ y)))))))
 
 (defun get-tile-type-cached (tile-map target-coord depth index-map coord)
   "Produce the type of tile at COORD."
@@ -178,7 +178,7 @@ The target is at TARGET-COORD."
     (thread-last (cl-mapcar (lambda (coord tile) (when (allowed equipped tile)
                                                    (cons (1+ time) (cons equipped coord))))
                             adjacent-coords adjacent-tiles)
-      (cl-remove nil))))
+      (delq nil))))
 
 (defun expand-search (search-state index-map tile-map target-coord depth)
   "Expand the seacrh from SEARCH-STATE."
@@ -198,7 +198,7 @@ The target is at TARGET-COORD."
   "Remove the states which have been SEEN from SEARCH-STATES.
 
 Update seen for the new states."
-  (cl-remove-if (lambda (search-state)
+  (cl-delete-if (lambda (search-state)
                   (let* ((seen-state  (map-elt seen (cdr search-state)))
                          (faster-than (and seen-state
                                            (< (car search-state)
@@ -234,6 +234,34 @@ Update seen for the new states."
                 closest-time     next-time)
      finally return closest))
 
+(defun sort-states (states target-coord)
+  "Sort STATES by the closest to TARGET-COORD..
+
+The first is the closest in distance with ties broken on time."
+  (cl-stable-sort (cl-sort states (apply-partially #'closer target-coord) :key #'cddr)
+                  #'< :key #'car))
+
+(defun merge-states (states new-states target-coord)
+  "Merge STATES with NEW-STATES by the closest to TARGET-COORD..
+
+The first is the closest in distance with ties broken on time."
+  (cl-merge 'list
+            ;; 'vector
+            states
+            new-states
+            (lambda (this-state that-state)
+              (and (<= (manhattan-distance (cddr this-state) target-coord)
+                       (manhattan-distance (cddr that-state) target-coord))
+                   (< (car this-state)
+                      (car that-state))))))
+
+(defun cant-make-it-faster (state found target)
+  "Produce t if STATE can't be faster than FOUND in getting to TARGET."
+  (and found
+       (> (+ (car state)
+             (manhattan-distance (cddr state) target))
+          (car found))))
+
 (defun find-target (depth target-x target-y)
   "Find the target in the cave of DEPTH at TARGET-X TARGET-Y."
   (let* ((index-map           (make-hash-table :test #'equal))
@@ -242,17 +270,26 @@ Update seen for the new states."
          (target-coord        (cons target-x target-y))
          (max-lisp-eval-depth 10000)
          (max-specpdl-size    32000)
-         (gc-cons-threshold   most-positive-fixnum))
+         (gc-cons-threshold   80000000))
     (cl-loop
        with found = nil
        with heads = '((0 TORCH . (0 . 0)))
+       ;; with heads = ['(0 TORCH . (0 . 0))]
+       ;; with count = 0
+       ;; when (eq count 1000)
+       ;;   do (setq heads (remove-slower heads found))
+       ;; for benchmarking
+       ;; when (eq count 100000)
+       ;;   do (cl-return nil)
        while heads
-       for search-head = (find-closest heads target-coord)
-       do (setq heads (delq search-head heads))
+       ;; for search-head = (aref heads 0)
+       ;; do (cl-replace heads heads :start2 2)
+       for search-head = (pop heads)
        when (and (or (null found)
                      (and found
                           (< (car search-head)
-                             (car found)))))
+                             (car found))
+                          (not (cant-make-it-faster search-head found target-coord)))))
          do (let* ((new-heads (expand-search search-head
                                              index-map
                                              tile-map
@@ -264,8 +301,14 @@ Update seen for the new states."
               
               (when (not (eq next-found found))
                 (setq found next-found)
-                (setq heads (cl-remove found heads)))
-              (setq heads (append (remove-seen seen new-heads) heads)))
+                (setq heads (cl-remove found heads))
+                (message "Found: %s, remaining: %s" next-found (length heads))
+                )
+              (setq heads (merge-states (sort-states (remove-seen seen new-heads)
+                                                     target-coord)
+                                        heads
+                                        target-coord)))
+            ;; do (cl-incf count)
        finally return (car found))))
 
 (defun day22-part-2 (input-file)
@@ -277,6 +320,8 @@ target: 10,10")
        (test-computed (day22-part-2 test-input))
        (test-ans      45))
   (message "Expected: %s\n    Got:      %s" test-ans test-computed))
+
+;; Answer 1043
 
 ;; Too slow to run as I go...
 ;; (when (not run-from-batch)
@@ -309,11 +354,15 @@ target: 10,10")
       (message "Part 1: %s" (day22-part-1 input-1))
       (message "Part 2: %s\n" (day22-part-2 input-2))
       ;; (message "Results: %s"
-      ;;                (benchmark-run 100 (let* ((test-input    "depth: 510
+      ;;          (benchmark-run 10 (progn
+      ;;                              (day22-part-2 input-2)
+      ;;                              (message "Done"))))
+      ;; (message "Results: %s"
+      ;;          (benchmark-run 100 (let* ((test-input    "depth: 510
       ;; target: 10,10")
-      ;;                                          (test-computed (day22-part-2 test-input))
-      ;;                                          (test-ans      45))
-      ;;                                     (message "Expected: %s\n    Got:      %s" test-ans test-computed))))
+      ;;                                       (test-computed (day22-part-2 test-input))
+      ;;                                       (test-ans      45))
+      ;;                                  (message "Expected: %s\n    Got:      %s" test-ans test-computed))))
       )))
 
 (provide 'day22)
