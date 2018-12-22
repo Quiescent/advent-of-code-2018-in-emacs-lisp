@@ -125,16 +125,16 @@ so that Emacs doesn't hang.")
   "Produce the best found state in SEARCH-STATES and FOUND-STATE.
 
 The target is at TARGET-COORD."
-  (let* ((candidates (thread-last (cl-remove-if-not (apply-partially #'eq 'TORCH)
-                                                    search-states
-                                                    :key #'cadr)
-                       (cl-remove-if-not (lambda (state) (equal target-coord (cddr state))))
-                       (cl-remove-if     (lambda (state) (and found-state
-                                                              (> (car state)
-                                                                 (car found-state)))))))
-         (best-candidate (thread-last (cl-sort candidates #'< :key #'car)
-                           (car))))
-    (or best-candidate found-state)))
+  (cl-loop for candidate in search-states
+     with best = found-state
+     when (and (eq 'TORCH (cadr candidate))
+               (equal target-coord (cddr candidate))
+               (or (null best)
+                   (and best
+                        (< (car candidate)
+                           (car best)))))
+       do (setq best candidate)
+     finally return best))
 
 (defun adjacent-coords (coord)
   "Produce the coordinates around COORD."
@@ -241,38 +241,55 @@ Update seen for the new states."
          (seen                (make-hash-table :test #'equal))
          (target-coord        (cons target-x target-y))
          (max-lisp-eval-depth 10000)
-         (max-specpdl-size    32000))
+         (max-specpdl-size    32000)
+         (gc-cons-threshold   most-positive-fixnum))
     (cl-loop
        with found = nil
        with heads = '((0 TORCH . (0 . 0)))
        while heads
-       for next-found = (find-best-found heads found target-coord)
-       when (not (eq next-found found))
-         do (progn
-              (setq found next-found)
-              (setq heads (cl-remove found heads)))
        for search-head = (find-closest heads target-coord)
        do (setq heads (delq search-head heads))
-       do (setq heads (append (thread-last (expand-search search-head
-                                                          index-map
-                                                          tile-map
-                                                          target-coord
-                                                          depth)
-                                (remove-seen seen))
-                              heads))
-       do (setq heads (remove-slower heads found))
+       when (and (or (null found)
+                     (and found
+                          (< (car search-head)
+                             (car found)))))
+         do (let* ((new-heads (expand-search search-head
+                                             index-map
+                                             tile-map
+                                             target-coord
+                                             depth))
+                   (next-found (find-best-found new-heads
+                                                found
+                                                target-coord)))
+              
+              (when (not (eq next-found found))
+                (setq found next-found)
+                (setq heads (cl-remove found heads)))
+              (setq heads (append (remove-seen seen new-heads) heads)))
        finally return (car found))))
 
 (defun day22-part-2 (input-file)
   "Run my solution to part two of the problem on the input in INPUT-FILE."
   (apply #'find-target (parse-input input-file)))
 
-;; Too slow to run as I go...
 (let* ((test-input    "depth: 510
 target: 10,10")
        (test-computed (day22-part-2 test-input))
        (test-ans      45))
   (message "Expected: %s\n    Got:      %s" test-ans test-computed))
+
+;; Too slow to run as I go...
+;; (when (not run-from-batch)
+;;   (message "Results: %s"
+;;            (progn
+;;              (profiler-start 'cpu+mem)
+;;              (benchmark-run 100 (let* ((test-input    "depth: 510
+;; target: 10,10")
+;;                                        (test-computed (day22-part-2 test-input))
+;;                                        (test-ans      45))
+;;                                   (message "Expected: %s\n    Got:      %s" test-ans test-computed)))
+;;              (profiler-report)
+;;              (profiler-stop))))
 
 ;; Run the solution:
 
@@ -290,7 +307,14 @@ target: 10,10")
                        (buffer-substring (point-min)
                                          (point-max))))))
       (message "Part 1: %s" (day22-part-1 input-1))
-      (message "Part 2: %s\n" (day22-part-2 input-2)))))
+      (message "Part 2: %s\n" (day22-part-2 input-2))
+      ;; (message "Results: %s"
+      ;;                (benchmark-run 100 (let* ((test-input    "depth: 510
+      ;; target: 10,10")
+      ;;                                          (test-computed (day22-part-2 test-input))
+      ;;                                          (test-ans      45))
+      ;;                                     (message "Expected: %s\n    Got:      %s" test-ans test-computed))))
+      )))
 
 (provide 'day22)
 ;;; day22 ends here
