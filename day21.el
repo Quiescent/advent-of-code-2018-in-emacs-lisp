@@ -197,7 +197,16 @@ so that Emacs doesn't hang.")
 ;; Maximum value of d for which we can still escape: 8388606
 ;; b = 8388606 % 256 = 254
 ;; e = e + 254
-;; 
+
+;; So I found the solution by running the above function for a long
+;; time, cutting the e column when the line of code was 28 and then
+;; finding the last element from the bottom which didn't repeat itself
+;; above.  (The last step was done by interactively running some elisp
+;; from a buffer with the values in it.)
+;;
+;; The whole thing with the overflow was a wild goose chase :/
+
+;; Answer: 7717135
 
 ;; Run the solution:
 
