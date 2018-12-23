@@ -147,45 +147,39 @@ centres."
                 best-length next-length)
      finally return best))
 
-(defun points-around-head (head)
+(defun move-closer (x)
+  "Get X closer to the origin."
+  (if (< 0 x)
+      (1+ x)
+      (if (eq 0 x)
+          x
+          (1- x))))
+
+(defun one-closer-to-zero (x)
+  "Produce the X which is one closer to zero."
+  (if (< x 0)
+      (1+ x)
+      (if (eq 0 x)
+          x
+          (1- x))))
+
+(defun closer-heads (head)
   "Produe the points which are closer to the origin from HEAD."
   (pcase head
     (`(,x ,y ,z)
-      (list (list x y      z)
-            (list x y      (1+ z))
-            (list x y      (1- z))
-            (list x (1+ y) z)
-            (list x (1+ y) (1+ z))
-            (list x (1+ y) (1- z))
-            (list x (1- y) z)
-            (list x (1- y) (1+ z))
-            (list x (1- y) (1- z))
-
-            (list (1+ x) y      z)
-            (list (1+ x) y      (1+ z))
-            (list (1+ x) y      (1- z))
-            (list (1+ x) (1+ y) z)
-            (list (1+ x) (1+ y) (1+ z))
-            (list (1+ x) (1+ y) (1- z))
-            (list (1+ x) (1- y) z)
-            (list (1+ x) (1- y) (1+ z))
-            (list (1+ x) (1- y) (1- z))
-
-            (list (1- x) y      z)
-            (list (1- x) y      (1+ z))
-            (list (1- x) y      (1- z))
-            (list (1- x) (1+ y) z)
-            (list (1- x) (1+ y) (1+ z))
-            (list (1- x) (1+ y) (1- z))
-            (list (1- x) (1- y) z)
-            (list (1- x) (1- y) (1+ z))
-            (list (1- x) (1- y) (1- z))))))
+      (list (list (one-closer-to-zero x) y                      z)
+            (list (one-closer-to-zero x) (one-closer-to-zero y) z)
+            (list (one-closer-to-zero x) (one-closer-to-zero y) (one-closer-to-zero z))
+            (list x                      (one-closer-to-zero y) z)
+            (list x                      (one-closer-to-zero y) (one-closer-to-zero z))
+            (list x                      y                      (one-closer-to-zero z))
+            (list (one-closer-to-zero z) y                      (one-closer-to-zero z))))))
 
 (defun expand-search (head seen)
   "Produce the new search points from HEAD.
 
 Points which have been SEEN are not added."
-  (thread-last (points-around-head head)
+  (thread-last (closer-heads head)
     (cl-delete-if (lambda (new-head)
                     (not (when (null (map-elt seen new-head))
                            (setf (map-elt seen new-head) t)))))))
@@ -216,6 +210,17 @@ Points which have been SEEN are not added."
   "Produce the number of SPHERES which contain POINT."
   (cl-count-if (lambda (sphere) (sphere-contains sphere point)) spheres))
 
+;; Approach:
+;; 
+;; Find the intersecting set and hard code it.
+;; 
+;; Find the start and the smallest and hard code them.
+;; 
+;; Try points which I think are reasonable with the random search
+;; around.
+;;
+;; Basically do it semi-by hand.
+
 (defun day23-part-2 (input-file)
   "Run my solution to part two of the problem on the input in INPUT-FILE."
   (let* ((bots                       (parse-bots input-file))
@@ -225,8 +230,11 @@ Points which have been SEEN are not added."
                                       bots
                                       containing-sphere))
          (intersecting               (largest-intersecting-set intersecting-or-containing))
-         (starting-point    (average-point intersecting))
-         (priority-function (apply-partially #'closest-to starting-point)))
+         (smallest-sphere            (cl-sort (cl-subseq intersecting 0) #'< :key #'cadddr))
+         (starting-point             (average-point intersecting))
+         (priority-function          (apply-partially #'closest-to starting-point)))
+    (message "Intersecting: %s" intersecting)
+    (message "Smallest sphere: %s" smallest-sphere)
     (message "Starting point: %s" starting-point)
     (cl-loop
        with best-count = (count-containing-spheres intersecting starting-point)
