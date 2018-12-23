@@ -59,7 +59,7 @@ pos=<1,3,1>, r=1")
 
 ;; # PART 2:
 
-(defun spheres-intersect (sphere-1 sphere-2)
+(defun spheres-intersect-or-contain (sphere-1 sphere-2)
   "Produce t if SPHERE-1 intersects with SPHERE-2."
   (let* ((distance-between-centres (+ (abs (- (car sphere-1) (car sphere-2)))
                                       (abs (- (cadr sphere-1) (cadr sphere-2)))
@@ -68,18 +68,18 @@ pos=<1,3,1>, r=1")
         (+ (cadddr sphere-1)
            (cadddr sphere-2)))))
 
-(defun count-intersections (spheres sphere)
+(defun count-intersection-or-contains (spheres sphere)
   "Produce the number of SPHERES which SPHERE interests with."
-  (cl-count-if (apply-partially #'spheres-intersect sphere) spheres))
+  (cl-count-if (apply-partially #'spheres-intersect-or-contain sphere) spheres))
 
-(defun most-intersections (spheres)
+(defun most-intersections-or-contains (spheres)
   "Produce the sphered which intersects with the most in SPHERES.
 
 Also produce the count of spheres which it intersected with."
   (cl-loop for sphere in (cdr spheres)
-     with best-count  = (count-intersections spheres (car spheres))
+     with best-count  = (count-intersection-or-contains spheres (car spheres))
      with best-sphere = (car spheres)
-     for  next-count  = (count-intersections spheres sphere)
+     for  next-count  = (count-intersection-or-contains spheres sphere)
      when (> next-count best-count)
        do (setq best-count  next-count
                 best-sphere sphere)
@@ -91,26 +91,61 @@ Also produce the count of spheres which it intersected with."
      (abs (- (cadr  point-1) (cadr  point-2)))
      (abs (- (caddr point-1) (caddr point-2)))))
 
-(defun sphere-contains (sphere point)
-  "Produce t if SPHERE contains POINT."
-  (<= (+ (abs (- (car sphere) (car point)))
-         (abs (- (cadr sphere) (cadr point)))
-         (abs (- (caddr sphere) (caddr point))))
-      (cadddr sphere)))
-
-(defun count-containing-spheres (spheres point)
-  "Produce the number of SPHERES which contain POINT."
-  (cl-count-if (lambda (sphere) (sphere-contains sphere point)) spheres))
-
 (defun distance-to-origin (point)
   "Produce the distance to the origin from POINT."
   (+ (abs (car   point))
      (abs (cadr  point))
      (abs (caddr point))))
 
-(defun all-intersecting-spheres (spheres sphere)
+(defun all-intersecting-or-containing-spheres (spheres sphere)
   "Produce the SPHERES which intersect with SPHERE."
-  (cl-remove-if-not (apply-partially #'spheres-intersect sphere) spheres))
+  (cl-remove-if-not (apply-partially #'spheres-intersect-or-contain sphere) spheres))
+
+(defun completely-contains (sphere-1 sphere-2 distance-between-centres)
+  "Produce t if SPHERE-1 completely contains SPHERE-2.
+
+DISTANCE-BETWEEN-CENTRES is the distance between the two
+centres."
+  (< (+ distance-between-centres
+        (cadddr sphere-2))
+     (cadddr sphere-1)))
+
+(defun spheres-intersect (sphere-1 sphere-2)
+  "Produce t if SPHERE-1 intersects with SPHERE-2."
+  (let* ((distance-between-centres (+ (abs (- (car sphere-1) (car sphere-2)))
+                                      (abs (- (cadr sphere-1) (cadr sphere-2)))
+                                      (abs (- (caddr sphere-1) (caddr sphere-2))))))
+    (and (<= distance-between-centres
+             (+ (cadddr sphere-1)
+                (cadddr sphere-2)))
+         (not (completely-contains sphere-1 sphere-2 distance-between-centres))
+         (not (completely-contains sphere-2 sphere-1 distance-between-centres)))))
+
+(defun all-intersecting-spheres (sphere spheres)
+  "Produce all the spheres which interesect with SPHERE in SPHERES."
+  (let* ((possibly-intersecting (cl-loop for other-sphere in spheres
+                                   when (spheres-intersect other-sphere sphere)
+                                     collect other-sphere)))
+    (cl-loop for sphere in possibly-intersecting
+       when (cl-every (lambda (other-sphere)
+                        (spheres-intersect sphere other-sphere))
+               possibly-intersecting)
+         collect sphere)))
+
+(defun largest-intersecting-set (spheres)
+  "Produce the largest set of SPHERES which intersect."
+  (cl-loop for sphere in (cdr spheres)
+     with count       = 0
+     do (message "Count: %s" count)
+     do (cl-incf count)
+     with best        = (all-intersecting-spheres (car spheres) spheres)
+     with best-length = (length best)
+     for  next        = (all-intersecting-spheres sphere        spheres)
+     for  next-length = (length next)
+     when (> next-length best-length)
+       do (setq best        next
+                best-length next-length)
+     finally return best))
 
 (defun points-around-head (head)
   "Produe the points which are closer to the origin from HEAD."
@@ -155,55 +190,44 @@ Points which have been SEEN are not added."
                     (not (when (null (map-elt seen new-head))
                            (setf (map-elt seen new-head) t)))))))
 
-(defun intersection-sets (spheres)
-  "Produce, for each sphere, a set of the SPHERES which it intersects with."
-  (cl-mapcar (lambda (sphere) (cons sphere
-                                    (cl-remove-if-not (lambda (other-sphere)
-                                                        (spheres-intersect sphere other-sphere))
-                                                      spheres)))
-             spheres))
-
 (defun average (xs)
   "Produce the average of XS."
   (/ (apply #'+ xs)
      (length xs)))
 
-(defun find-most-central-sphere (spheres)
-  "Produce the most central sphere in SPHERES.
-
-Proceeds by determining the average point and then eliminating
-the furthest sphere, while there is more than one sphere
-involved."
-  (cl-loop while (> (length spheres) 1)
-     for mid-point = (list (average (cl-mapcar #'car   spheres))
-                           (average (cl-mapcar #'cadr  spheres))
-                           (average (cl-mapcar #'caddr spheres)))
-     do (setq spheres
-              (cl-mapcar (lambda (sphere) (cons (manhattan-distance sphere mid-point) sphere))
-                 spheres))
-     do (setq spheres
-              (cl-sort spheres #'> :key #'car))
-     do (setq spheres
-              (cl-mapcar #'cdr spheres))
-     do (setq spheres (cdr spheres))
-     finally return mid-point))
+(defun average-point (spheres)
+  "Produce the average of the centres of SPHERES."
+  (list (average (cl-mapcar #'car   spheres))
+        (average (cl-mapcar #'cadr  spheres))
+        (average (cl-mapcar #'caddr spheres))))
 
 (defun closest-to (point other-point)
   "Produce the distance from POINT to OTHER-POINT."
   (manhattan-distance point other-point))
 
+(defun sphere-contains (sphere point)
+  "Produce t if SPHERE contains POINT."
+  (<= (+ (abs (- (car sphere) (car point)))
+         (abs (- (cadr sphere) (cadr point)))
+         (abs (- (caddr sphere) (caddr point))))
+      (cadddr sphere)))
+
+(defun count-containing-spheres (spheres point)
+  "Produce the number of SPHERES which contain POINT."
+  (cl-count-if (lambda (sphere) (sphere-contains sphere point)) spheres))
+
 (defun day23-part-2 (input-file)
   "Run my solution to part two of the problem on the input in INPUT-FILE."
-  (let* ((bots              (parse-bots input-file))
-         (best-intersection (most-intersections bots))
-         (containing-sphere (cdr best-intersection))
-         (intersecting      (all-intersecting-spheres bots containing-sphere))
-         (most-central      (find-most-central-sphere (cl-subseq bots 0)))
-         (starting-point    (list (car   most-central)
-                                  (cadr  most-central)
-                                  (caddr most-central)))
+  (let* ((bots                       (parse-bots input-file))
+         (best-intersection          (most-intersections-or-contains bots))
+         (containing-sphere          (cdr best-intersection))
+         (intersecting-or-containing (all-intersecting-or-containing-spheres
+                                      bots
+                                      containing-sphere))
+         (intersecting               (largest-intersecting-set intersecting-or-containing))
+         (starting-point    (average-point intersecting))
          (priority-function (apply-partially #'closest-to starting-point)))
-    (message "Most central: %s" most-central)
+    (message "Starting point: %s" starting-point)
     (cl-loop
        with best-count = (count-containing-spheres intersecting starting-point)
        with best-heads = nil
