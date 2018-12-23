@@ -160,19 +160,27 @@ Points which have been SEEN are not added."
 
 (defun intersection-sets (spheres)
   "Produce, for each sphere, a set of the SPHERES which it intersects with."
-  (cl-mapcar (lambda (sphere) (cl-remove-if-not (lambda (other-sphere)
-                                                  (spheres-intersect sphere other-sphere))
-                                                spheres))
+  (cl-mapcar (lambda (sphere) (cons sphere
+                                    (cl-remove-if-not (lambda (other-sphere)
+                                                        (spheres-intersect sphere other-sphere))
+                                                      spheres)))
              spheres))
 
-(defun find-most-central-sphere (spheres)
-  "Produce the sphere which is most centred in SPHERES."
-  (let* ((best-intersection (most-intersections spheres))
-         (intersecting      (all-intersecting-spheres spheres (cdr best-intersection))))
-    (message "Sphere count: %s" (length spheres))
-    (if (eq (length spheres) 1)
-        (car spheres)
-        (find-most-central-sphere (cl-delete (cdr best-intersection) intersecting)))))
+(defun find-most-central-sphere (intersection-sets)
+  "Produce the sphere which is most centred in INTERSECTION-SETS.
+
+INTERSECTION-SETS are the sets of spheres which each sphere
+intersects with."
+  (cl-loop
+     do (setq intersection-sets
+              (cl-sort intersection-sets #'> :key (lambda (set) (length (cdr set)))))
+     for biggest-set = (pop intersection-sets)
+     while (> (length (cdr biggest-set)) 1)
+     do (setq intersection-sets (cl-mapcar (lambda (set) (cons (car set)
+                                                               (cl-delete (car biggest-set)
+                                                                          (cdr set))))
+                                   intersection-sets))
+     finally return (car biggest-set)))
 
 (defun day23-part-2 (input-file)
   "Run my solution to part two of the problem on the input in INPUT-FILE."
@@ -180,7 +188,8 @@ Points which have been SEEN are not added."
          (best-intersection (most-intersections bots))
          (containing-sphere (cdr best-intersection))
          (intersecting      (all-intersecting-spheres bots containing-sphere))
-         (most-central      (find-most-central-sphere (cl-subseq intersecting 0)))
+         (most-central      (find-most-central-sphere (intersection-sets
+                                                       (cl-subseq intersecting 0))))
          (starting-point    (list (car   most-central)
                                   (cadr  most-central)
                                   (caddr most-central))))
@@ -215,6 +224,8 @@ Points which have been SEEN are not added."
        finally return (thread-first (cl-mapcar (lambda (head) (distance-to-origin head))                                      best-heads)
                         (cl-sort #'<)
                         (car)))))
+
+;; Too high: 228293349
 
 (let* ((test-input    "pos=<10,12,12>, r=2
 pos=<12,14,12>, r=2
