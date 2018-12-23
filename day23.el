@@ -147,39 +147,45 @@ centres."
                 best-length next-length)
      finally return best))
 
-(defun move-closer (x)
-  "Get X closer to the origin."
-  (if (< 0 x)
-      (1+ x)
-      (if (eq 0 x)
-          x
-          (1- x))))
-
-(defun one-closer-to-zero (x)
-  "Produce the X which is one closer to zero."
-  (if (< x 0)
-      (1+ x)
-      (if (eq 0 x)
-          x
-          (1- x))))
-
-(defun closer-heads (head)
+(defun points-around-head (head)
   "Produe the points which are closer to the origin from HEAD."
   (pcase head
     (`(,x ,y ,z)
-      (list (list (one-closer-to-zero x) y                      z)
-            (list (one-closer-to-zero x) (one-closer-to-zero y) z)
-            (list (one-closer-to-zero x) (one-closer-to-zero y) (one-closer-to-zero z))
-            (list x                      (one-closer-to-zero y) z)
-            (list x                      (one-closer-to-zero y) (one-closer-to-zero z))
-            (list x                      y                      (one-closer-to-zero z))
-            (list (one-closer-to-zero z) y                      (one-closer-to-zero z))))))
+      (list (list x y      z)
+            (list x y      (1+ z))
+            (list x y      (1- z))
+            (list x (1+ y) z)
+            (list x (1+ y) (1+ z))
+            (list x (1+ y) (1- z))
+            (list x (1- y) z)
+            (list x (1- y) (1+ z))
+            (list x (1- y) (1- z))
+
+            (list (1+ x) y      z)
+            (list (1+ x) y      (1+ z))
+            (list (1+ x) y      (1- z))
+            (list (1+ x) (1+ y) z)
+            (list (1+ x) (1+ y) (1+ z))
+            (list (1+ x) (1+ y) (1- z))
+            (list (1+ x) (1- y) z)
+            (list (1+ x) (1- y) (1+ z))
+            (list (1+ x) (1- y) (1- z))
+
+            (list (1- x) y      z)
+            (list (1- x) y      (1+ z))
+            (list (1- x) y      (1- z))
+            (list (1- x) (1+ y) z)
+            (list (1- x) (1+ y) (1+ z))
+            (list (1- x) (1+ y) (1- z))
+            (list (1- x) (1- y) z)
+            (list (1- x) (1- y) (1+ z))
+            (list (1- x) (1- y) (1- z))))))
 
 (defun expand-search (head seen)
   "Produce the new search points from HEAD.
 
 Points which have been SEEN are not added."
-  (thread-last (closer-heads head)
+  (thread-last (points-around-head head)
     (cl-delete-if (lambda (new-head)
                     (not (when (null (map-elt seen new-head))
                            (setf (map-elt seen new-head) t)))))))
@@ -208,7 +214,12 @@ Points which have been SEEN are not added."
 
 (defun count-containing-spheres (spheres point)
   "Produce the number of SPHERES which contain POINT."
-  (cl-count-if (lambda (sphere) (sphere-contains sphere point)) spheres))
+  (cl-count-if (lambda (sphere) (prog1
+                                  (sphere-contains sphere point)
+                                  (when (not (sphere-contains sphere point))
+                                        ;(message "Outside: %s" sphere)
+                                    )))
+               spheres))
 
 ;; Approach:
 ;; 
@@ -221,66 +232,30 @@ Points which have been SEEN are not added."
 ;;
 ;; Basically do it semi-by hand.
 
+;; Having looked at the solution megathread it would seem that
+;; everyone is just simply using the Z3 constraint optimiser.
+
+(require 'seq)
+
 (defun day23-part-2 (input-file)
   "Run my solution to part two of the problem on the input in INPUT-FILE."
-  (let* ((bots                       (parse-bots input-file))
-         (best-intersection          (most-intersections-or-contains bots))
-         (containing-sphere          (cdr best-intersection))
-         (intersecting-or-containing (all-intersecting-or-containing-spheres
-                                      bots
-                                      containing-sphere))
-         (intersecting               (largest-intersecting-set intersecting-or-containing))
-         (smallest-sphere            (cl-sort (cl-subseq intersecting 0) #'< :key #'cadddr))
-         (starting-point             (average-point intersecting))
-         (priority-function          (apply-partially #'closest-to starting-point)))
-    (message "Intersecting: %s" intersecting)
-    (message "Smallest sphere: %s" smallest-sphere)
-    (message "Starting point: %s" starting-point)
-    (cl-loop
-       with best-count = (count-containing-spheres intersecting starting-point)
-       with best-heads = nil
-       with seen       = (make-hash-table :test #'equal)
-       with heads      = (list starting-point)
-       for head = (pop heads)
-       for next-count = (count-containing-spheres intersecting head)
-       if (> next-count best-count)
-         do (progn
-              (message "Found better!")
-              (setq best-count next-count
-                    best-heads (list head)))
-       else when (eq next-count best-count)
-              do (progn
-                   (push head best-heads)
-                   (let* ((next-heads (expand-search head seen)))
-                     (when next-heads
-                       (setq heads (cl-merge 'list
-                                             heads
-                                             (cl-sort next-heads
-                                                      #'<
-                                                      :key priority-function)
-                                             #'<
-                                             :key priority-function)))))
-       do (message "Head count: %s" (length heads))
-       when (eq (length heads) 0)
-         do (message "Best: %s" (car best-heads))
-       while (> (length heads) 0)
-       finally return (thread-first (cl-mapcar (lambda (head) (distance-to-origin head))                                      best-heads)
-                        (cl-sort #'<)
-                        (car)))))
+  (let* ((bots  (parse-bots input-file))
+         )
+    ))
 
 ;; Too high: 228293349
 ;; Too low:  71368671
 ;; Too low:  72139666
 
-(let* ((test-input    "pos=<10,12,12>, r=2
-pos=<12,14,12>, r=2
-pos=<16,12,12>, r=4
-pos=<14,14,14>, r=6
-pos=<50,50,50>, r=200
-pos=<10,10,10>, r=5")
-       (test-computed (day23-part-2 test-input))
-       (test-ans      36))
-  (message "Expected: %s\n    Got:      %s" test-ans test-computed))
+;; (let* ((test-input    "pos=<10,12,12>, r=2
+;; pos=<12,14,12>, r=2
+;; pos=<16,12,12>, r=4
+;; pos=<14,14,14>, r=6
+;; pos=<50,50,50>, r=200
+;; pos=<10,10,10>, r=5")
+;;        (test-computed (day23-part-2 test-input))
+;;        (test-ans      36))
+;;   (message "Expected: %s\n    Got:      %s" test-ans test-computed))
 
 ;; Run the solution:
 
