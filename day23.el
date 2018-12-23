@@ -64,9 +64,9 @@ pos=<1,3,1>, r=1")
   (let* ((distance-between-centres (+ (abs (- (car sphere-1) (car sphere-2)))
                                       (abs (- (cadr sphere-1) (cadr sphere-2)))
                                       (abs (- (caddr sphere-1) (caddr sphere-2))))))
-    (<= (+ (cadddr sphere-1)
-           (cadddr sphere-2))
-        distance-between-centres)))
+    (<= distance-between-centres
+        (+ (cadddr sphere-1)
+           (cadddr sphere-2)))))
 
 (defun count-intersections (spheres sphere)
   "Produce the number of SPHERES which SPHERE interests with."
@@ -84,6 +84,12 @@ Also produce the count of spheres which it intersected with."
        do (setq best-count  next-count
                 best-sphere sphere)
      finally return (cons best-count best-sphere)))
+
+(defun manhattan-distance (point-1 point-2)
+  "Produce the manhattan distance between POINT-1 and POINT-2."
+  (+ (abs (- (car   point-1) (car   point-2)))
+     (abs (- (cadr  point-1) (cadr  point-2)))
+     (abs (- (caddr point-1) (caddr point-2)))))
 
 (defun sphere-contains (sphere point)
   "Produce t if SPHERE contains POINT."
@@ -106,13 +112,61 @@ Also produce the count of spheres which it intersected with."
   "Produce the SPHERES which intersect with SPHERE."
   (cl-remove-if-not (apply-partially #'spheres-intersect sphere) spheres))
 
+(defun one-further-from-zero (x)
+  "Produce the X which is one closer to zero."
+  (if (< x 0)
+      (1- x)
+      (if (eq 0 x)
+          x
+          (1+ x))))
+
+(defun one-closer-to-zero (x)
+  "Produce the X which is one closer to zero."
+  (if (< x 0)
+      (1+ x)
+      (if (eq 0 x)
+          x
+          (1- x))))
+
+(defun closer-heads (head)
+  "Produe the points which are closer to the origin from HEAD."
+  (pcase head
+    (`(,dist ,x ,y ,z)
+      (list (list (1- dist) (one-closer-to-zero x) y                      z)
+            (list (1- dist) x                      (one-closer-to-zero y) z)
+            (list (1- dist) x                      y                      (one-closer-to-zero z))
+            (list (1+ dist) (one-further-from-zero x) y                         z)
+            (list (1+ dist) x                         (one-further-from-zero y) z)
+            (list (1+ dist) x                         y                         (one-further-from-zero z))))))
+
+(defun expand-search (heads seen)
+  "Produce the new search points from HEADS.
+
+Points which have been SEEN are not added."
+  (cl-loop for head in heads
+     for new-heads    = (closer-heads head)
+     for without-seen = (cl-delete-if (lambda (new-head)
+                                        (not (when (null (map-elt seen (cdr new-head)))
+                                               (setf (map-elt seen (cdr new-head))
+                                                     (car new-head)))))
+                           new-heads)
+     append without-seen))
+
+(defun find-most-central-sphere (spheres)
+  "Produce the sphere which is most centred in SPHERES."
+  (let* ((best-intersection (most-intersections spheres))
+         (intersecting      (all-intersecting-spheres spheres (cdr best-intersection))))
+    (if (eq (length spheres) 1)
+        (car spheres)
+        (find-most-central-sphere (cl-delete (cdr best-intersection) intersecting)))))
+
 (defun day23-part-2 (input-file)
   "Run my solution to part two of the problem on the input in INPUT-FILE."
   (let* ((bots              (parse-bots input-file))
          (best-intersection (most-intersections bots))
-         (intersections     (car best-intersection))
          (containing-sphere (cdr best-intersection))
          (intersecting      (all-intersecting-spheres bots containing-sphere))
+         (most-central      (find-most-central-sphere (cl-subseq intersecting 0)))
          (min-x             (thread-first (cl-mapcar #'car   intersecting)
                               (cl-sort #'<)
                               (car)))
@@ -130,23 +184,34 @@ Also produce the count of spheres which it intersected with."
                               (car)))
          (max-z             (thread-first (cl-mapcar #'caddr intersecting)
                               (cl-sort #'>)
-                              (car))))
+                              (car)))
+         (starting-point    (list (/ (+ min-x max-x) 2)
+                                  (/ (+ min-y max-y) 2)
+                                  (/ (+ min-z max-z) 2))))
     (message "Best intersection: %s" best-intersection)
-    (message "Bounds: (%s, %s) (%s, %s) (%s, %s)" min-x max-x min-y max-y min-z max-z)
-    (cl-loop for x from min-x to max-x
-       with best-point    = nil
-       with best-distance = nil
-       do (cl-loop for y from min-y to max-y
-             do (cl-loop for z from min-z to max-z
-                   for current-point = (list x y z)
-                   when (and (eq intersections
-                                 (count-containing-spheres bots current-point))
-                             (or (null best-point)
-                                 (< (distance-to-origin current-point)
-                                    best-distance)))
-                     do (setq best-point    current-point
-                              best-distance (distance-to-origin current-point))))
-       finally return best-distance)))
+    (message "Most central: %s" most-central)
+    (cl-loop repeat 5
+       with best-count = (count-containing-spheres intersecting starting-point)
+       with seen       = (make-hash-table :test #'equal)
+       with heads      = (list (cons (distance-to-origin starting-point) starting-point))
+       do (setq heads (expand-search heads seen))
+       do (setq heads
+                (cl-loop for head in heads
+                   for  next-count = (count-containing-spheres intersecting head)
+                   when (> next-count best-count)
+                     do (setq best-count next-count)
+                   collect (cons next-count head)))
+       do (setq heads
+                (cl-loop for (count . head) in heads
+                   when (>= count best-count)
+                     collect head))
+          ;; do (setq heads
+          ;;          (cl-sort heads #'< :key (lambda (head)
+          ;;                                    (manhattan-distance (cdr head)
+          ;;                                                        starting-point))))
+       do (message "Heads: %s" heads)
+       while (> (length heads) 1)
+       finally return (distance-to-origin (car heads)))))
 
 (let* ((test-input    "pos=<10,12,12>, r=2
 pos=<12,14,12>, r=2
