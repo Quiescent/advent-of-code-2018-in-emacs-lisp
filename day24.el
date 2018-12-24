@@ -215,39 +215,36 @@ See `parse-armies' for structure."
          in sorted-by-initiative
          for other-army = (if (eq type 'IMMUNE) infection immune-system)
          when target
-           do (cl-loop
-                 for (others-initiative
-                            others-damage
-                            others-damage-type
-                            others-unit-count
-                            others-hit-points
-                            others-immunities
-                            others-weaknesses)
-                   = (nth target other-army)
-                 for other-is-immune-to-us   = (memq damage-type others-immunities)
-                 for other-is-weak-to-us     = (memq damage-type others-weaknesses)
-                 for our-damage-this-round   = (* unit-count
-                                                  (if other-is-immune-to-us
-                                                      0
-                                                      (if other-is-weak-to-us
-                                                          (* 2 damage)
-                                                          damage)))
-                 for units-killed            = (/ our-damage-this-round others-hit-points)
-                 do (setcar (nthcdr 3 (nth target other-army))
-                            (- others-unit-count units-killed))
-                 for new-others-unit-count   = (- others-unit-count units-killed)
-                 when (> new-others-unit-count 0)
-                   do (let ((result-army (list others-initiative
-                                               others-damage
-                                               others-damage-type
-                                               new-others-unit-count
-                                               others-hit-points
-                                               others-immunities
-                                               others-weaknesses)))
-                        (if (eq type 'IMMUNE)
-                            (push result-army resulting-infection)
-                            (push result-army resulting-immune-system)))
-                 return nil))
+           do (pcase-let* ((`(,others-initiative
+                              ,others-damage
+                              ,others-damage-type
+                              ,others-unit-count
+                              ,others-hit-points
+                              ,others-immunities
+                              ,others-weaknesses)
+                             (nth target other-army))
+                           (other-is-immune-to-us (memq damage-type others-immunities))
+                           (other-is-weak-to-us   (memq damage-type others-weaknesses))
+                           (our-damage-this-round (* unit-count
+                                                     (if other-is-immune-to-us
+                                                         0
+                                                         (if other-is-weak-to-us
+                                                             (* 2 damage)
+                                                             damage))))
+                           (units-killed          (/ our-damage-this-round others-hit-points))
+                           (new-others-unit-count (- others-unit-count units-killed)))
+                (setcar (nthcdr 3 (nth target other-army)) new-others-unit-count)
+                (when (> new-others-unit-count 0)
+                  (let ((result-army (list others-initiative
+                                           others-damage
+                                           others-damage-type
+                                           new-others-unit-count
+                                           others-hit-points
+                                           others-immunities
+                                           others-weaknesses)))
+                    (if (eq type 'IMMUNE)
+                        (push result-army resulting-infection)
+                        (push result-army resulting-immune-system))))))
       (cons resulting-immune-system resulting-infection))))
 
 (defun day24-part-1 (input-file)
