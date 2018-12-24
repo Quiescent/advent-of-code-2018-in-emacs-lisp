@@ -79,6 +79,13 @@ An army is:
     (string-match "does [0-9]+ \\(.*\\) damage" str)
     (intern (upcase (match-string 1 str)))))
 
+(defun parse-subgroup (sub-group)
+  "Parse a SUB-GROUP into symbols representing the immunities and weaknesses."
+  (thread-last (split-string (substring sub-group (+ 3 (cl-search "to " sub-group)))
+                             "," t " ")
+    (cl-mapcar #'upcase)
+    (cl-mapcar #'intern)))
+
 (defun parse-immunities-and-weaknesses (str)
   "Parse a cons of immunities and weaknesses from STR."
   (let* ((modifier-section (substring str
@@ -87,27 +94,11 @@ An army is:
          (sub-groups       (split-string modifier-section ";" t " "))
          (immune-first     (cl-search "immune" (car sub-groups)))
          (has-second-group (eq (length sub-groups) 2))
-         (first-group      (thread-last (split-string (substring (car sub-groups)
-                                                                 (+ 3 (cl-search "to "
-                                                                                 (car sub-groups))))
-                                                      "," t " ")
-                             (cl-mapcar #'upcase)
-                             (cl-mapcar #'intern)))
-         (second-group     (when has-second-group
-                             (thread-last (split-string (substring (cadr sub-groups)
-                                                                   (+ 3 (cl-search "to "
-                                                                                   (cadr sub-groups))))
-                                                        "," t " ")
-                               (cl-mapcar #'upcase)
-                               (cl-mapcar #'intern))))
-         (result           nil))
+         (first-group      (parse-subgroup (car sub-groups)))
+         (second-group     (when has-second-group (parse-subgroup (cadr sub-groups)))))
     (if immune-first
-        (progn
-          (push second-group result)
-          (push first-group result))
-        (progn
-          (push first-group result)
-          (push second-group result)))))
+        (cons first-group  second-group)
+        (cons second-group first-group))))
 
 (defun parse-army (army-str)
   "Parse ARMY-STR into the army structure.
@@ -122,8 +113,8 @@ See `parse-armies' for structure."
                                    (hit-points  (nth 1 stats))
                                    (modifiers   (when (cl-search "to " line)
                                                   (parse-immunities-and-weaknesses line)))
-                                   (immunities  (and modifiers (car  modifiers)))
-                                   (weaknesses  (and modifiers (cadr modifiers))))
+                                   (immunities  (and modifiers (car modifiers)))
+                                   (weaknesses  (and modifiers (cdr modifiers))))
                               (list initiative
                                     damage
                                     damage-type
