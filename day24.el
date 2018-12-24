@@ -234,6 +234,31 @@ If the TARGET-IS-WEAK then deal double damage."
       (cons (delq nil immune-system)
             (delq nil infection)))))
 
+(defun print-army (armies)
+  "Print ARMIES."
+  (cl-loop for (initiative
+                 damage
+                 damage-type
+                 unit-count
+                 hit-points
+                 immunity
+                 weakness)
+     in armies
+     do (message " - initiative: %s
+ - damage: %s
+ - damage-type: %s
+ - unit-count: %s
+ - hit-points: %s
+ - immunity: %s
+ - weakness: %s\n"
+                 initiative
+                 damage
+                 damage-type
+                 unit-count
+                 hit-points
+                 immunity
+                 weakness)))
+
 (defun day24-part-1 (input-file)
   "Run my solution to part one of the problem on the input in INPUT-FILE."
   (let* ((armies        (parse-armies input-file))
