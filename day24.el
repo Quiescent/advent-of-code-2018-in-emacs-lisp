@@ -200,14 +200,11 @@ If the TARGET-IS-WEAK then deal double damage."
          (sorted-armies (thread-first (cl-sort tagged-armies #'> :key #'cadr)
                           (cl-stable-sort #'> :key #'effective-power)))
          (taken         (make-hash-table :test #'equal))
-         targets)
-    (cl-loop for army in sorted-armies
-       for type         = (car army)
-       for other-armies = (if (eq type 'IMMUNE) infection  immune-system)
-       for other-tag    = (if (eq type 'IMMUNE) 'INFECTION 'IMMUNE)
-       do (push (find-target other-armies taken other-tag (cdr army)) targets))
-    (setq targets (nreverse targets))
-    (message "Immunes: %s, Infections: %s, Targets: %s" (length immune-system) (length infection) targets)
+         (targets       (cl-loop for army in sorted-armies
+                           for type         = (car army)
+                           for other-armies = (if (eq type 'IMMUNE) infection  immune-system)
+                           for other-tag    = (if (eq type 'IMMUNE) 'INFECTION 'IMMUNE)
+                           collect (find-target other-armies taken other-tag (cdr army)))))
     (let* ((tagged-armies-with-targets (cl-mapcar #'cons targets sorted-armies))
            (sorted-by-initiative       (cl-sort tagged-armies-with-targets
                                                 #'>
