@@ -49,6 +49,12 @@ so that Emacs doesn't hang.")
 ;; 7. Any remaining damage to a unit that does not immediately kill it
 ;; is ignored.
 
+;; ==========Assumptions==========
+;;
+;; 1. Armies have distinct initiatives.
+;;
+;; 2. No number statistics are negative.
+
 (defun parse-armies (input-file)
   "Parse the INPUT-FILE into a cons of the immune system and infection army.
 
@@ -112,11 +118,12 @@ See `parse-armies' for structure."
                                    (initiative  (nth 3 stats))
                                    (damage      (nth 2 stats))
                                    (damage-type (parse-damage-type line))
-                                   (unit-count  (nth 1 stats))
-                                   (hit-points  (nth 2 stats))
-                                   (modifiers   (parse-immunities-and-weaknesses line))
-                                   (immunities  (car  modifiers))
-                                   (weaknesses  (cadr modifiers)))
+                                   (unit-count  (nth 0 stats))
+                                   (hit-points  (nth 1 stats))
+                                   (modifiers   (when (cl-search "to " line)
+                                                  (parse-immunities-and-weaknesses line)))
+                                   (immunities  (and modifiers (car  modifiers)))
+                                   (weaknesses  (and modifiers (cadr modifiers))))
                               (list initiative
                                     damage
                                     damage-type
@@ -124,36 +131,157 @@ See `parse-armies' for structure."
                                     hit-points
                                     immunities
                                     weaknesses)))
-             (cl-loop for lines on (split-string army-str "\n" t " ") by #'cddr
-                collect (concat (car lines) (cadr lines)))))
+             (split-string army-str "\n" t " ")))
+
+(defun effective-power (tagged-army)
+  "Produce the effective power of TAGGED-ARMY."
+  (* (nth 2 tagged-army)
+     (nth 4 tagged-army)))
+
+(require 'map)
 
 (defun tick (immune-system infection)
   "Advance IMMUNE-SYSTEM and INFECTION by one unit of targetting and attack."
-  (cons immune-system infection))
+  (let* ((tagged-armies (append (cl-mapcar (apply-partially #'cons 'IMMUNE)
+                                           (cl-subseq immune-system 0))
+                                (cl-mapcar (apply-partially #'cons 'INFECTION)
+                                           (cl-subseq infection     0))))
+         (sorted-armies (thread-first (cl-sort tagged-armies #'> :key #'cadr)
+                          (cl-stable-sort #'> :key #'effective-power)))
+         (taken         (make-hash-table :test #'equal))
+         targets)
+    (cl-loop for (type _ damage damage-type unit-count _ _ _) in sorted-armies
+       for other-army = (if (eq type 'IMMUNE) infection  immune-system)
+       for other-tag  = (if (eq type 'IMMUNE) 'INFECTION 'IMMUNE)
+       do (cl-loop for (others-initiative
+                              others-damage
+                              _
+                              others-unit-count
+                              _
+                              others-immunities
+                              others-weaknesses)
+               being the elements of other-army
+             using (index i)
+             with best-others-effective-power = nil
+             with best-initiative             = nil
+             with best-index                  = nil
+             with best-damage-dealt           = nil
+             for  other-is-immune-to-us       = (memq damage-type others-immunities)
+             for  other-is-weak-to-us         = (memq damage-type others-weaknesses)
+             for  others-effective-power      = (* others-unit-count others-damage)
+             for  our-damage-dealt            = (* unit-count
+                                                   (if other-is-immune-to-us
+                                                       0
+                                                       (if other-is-weak-to-us
+                                                           (* 2 damage)
+                                                           damage)))
+             when (and (not (map-elt taken (cons other-tag i)))
+                       (or (null best-index)
+                           (or (> our-damage-dealt
+                                  best-damage-dealt)
+                               (and (eq our-damage-dealt
+                                        best-damage-dealt)
+                                    (> others-effective-power
+                                       best-others-effective-power))
+                               (and (eq our-damage-dealt
+                                        best-damage-dealt)
+                                    (eq others-effective-power
+                                        best-others-effective-power)
+                                    (> others-initiative
+                                       best-initiative)))))
+               do (progn
+                    (setq best-others-effective-power others-effective-power
+                          best-initiative             others-initiative
+                          best-index                  i
+                          best-damage-dealt           our-damage-dealt))
+             finally (progn
+                       (setf (map-elt taken (cons other-tag best-index)) t)
+                       (push best-index targets))))
+    (setq targets (nreverse targets))
+    (let* ((tagged-armies-with-targets (cl-mapcar #'cons targets sorted-armies))
+           (sorted-by-initiative       (cl-sort tagged-armies-with-targets
+                                                #'>
+                                                :key #'caddr))
+           resulting-infection
+           resulting-immune-system)
+      (cl-loop for infection-army being the elements of infection
+         using (index i)
+         when (not (map-elt taken (cons 'INFECTION i)))
+           do (push infection-army resulting-infection))
+      (cl-loop for immune-system-army being the elements of immune-system
+         using (index i)
+         when (not (map-elt taken (cons 'IMMUNE i)))
+           do (push immune-system-army resulting-immune-system))
+      (cl-loop for (target
+                     type
+                     _
+                     damage
+                     damage-type
+                     unit-count
+                     _
+                     _
+                     _)
+         in sorted-by-initiative
+         for other-army = (if (eq type 'IMMUNE) infection immune-system)
+         when target
+           do (cl-loop
+                 for (others-initiative
+                            others-damage
+                            others-damage-type
+                            others-unit-count
+                            others-hit-points
+                            others-immunities
+                            others-weaknesses)
+                   = (nth target other-army)
+                 for other-is-immune-to-us   = (memq damage-type others-immunities)
+                 for other-is-weak-to-us     = (memq damage-type others-weaknesses)
+                 for our-damage-this-round   = (* unit-count
+                                                  (if other-is-immune-to-us
+                                                      0
+                                                      (if other-is-weak-to-us
+                                                          (* 2 damage)
+                                                          damage)))
+                 for units-killed            = (/ our-damage-this-round others-hit-points)
+                 do (setcar (nthcdr 3 (nth target other-army))
+                            (- others-unit-count units-killed))
+                 for new-others-unit-count   = (- others-unit-count units-killed)
+                 when (> new-others-unit-count 0)
+                   do (let ((result-army (list others-initiative
+                                               others-damage
+                                               others-damage-type
+                                               new-others-unit-count
+                                               others-hit-points
+                                               others-immunities
+                                               others-weaknesses)))
+                        (if (eq type 'IMMUNE)
+                            (push result-army resulting-infection)
+                            (push result-army resulting-immune-system)))
+                 return nil))
+      (cons resulting-immune-system resulting-infection))))
 
 (defun day24-part-1 (input-file)
   "Run my solution to part one of the problem on the input in INPUT-FILE."
   (let* ((armies        (parse-armies input-file))
          (immune-system (car armies))
-         (infection     (cadr armies)))
+         (infection     (cdr armies)))
     (cl-loop while (and (> (length immune-system) 0)
                         (> (length infection)     0))
-       for (next-immun-system . next-infection) = (tick immune-system infection)
-       do (setq immune-system next-immun-system
-                infection     next-infection)
-       repeat 5)))
+       for (next-immune-system . next-infection) = (tick immune-system infection)
+       do (setq immune-system next-immune-system
+                infection     next-infection))
+    (thread-last (if (> (length immune-system) 0) immune-system infection)
+      (cl-mapcar #'cadddr)
+      (apply #'+))))
+
+;; 30631 -- too low
 
 (let* ((test-input    "Immune System:
-17 units each with 5390 hit points (weak to radiation, bludgeoning) with
- an attack that does 4507 fire damage at initiative 2
-989 units each with 1274 hit points (immune to fire; weak to bludgeoning,
- slashing) with an attack that does 25 slashing damage at initiative 3
+17 units each with 5390 hit points (weak to radiation, bludgeoning) with an attack that does 4507 fire damage at initiative 2
+989 units each with 1274 hit points (immune to fire; weak to bludgeoning, slashing) with an attack that does 25 slashing damage at initiative 3
 
 Infection:
-801 units each with 4706 hit points (weak to radiation) with an attack
- that does 116 bludgeoning damage at initiative 1
-4485 units each with 2961 hit points (immune to radiation; weak to fire,
- cold) with an attack that does 12 slashing damage at initiative 4")
+801 units each with 4706 hit points (weak to radiation) with an attack that does 116 bludgeoning damage at initiative 1
+4485 units each with 2961 hit points (immune to radiation; weak to fire, cold) with an attack that does 12 slashing damage at initiative 4")
        (test-computed (day24-part-1 test-input))
        (test-ans      5216))
   (message "Expected: %s\n    Got:      %s" test-ans test-computed))
