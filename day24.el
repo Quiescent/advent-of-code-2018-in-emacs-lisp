@@ -131,6 +131,19 @@ See `parse-armies' for structure."
 
 (require 'map)
 
+(defun damage-dealt (damage unit-count target-is-immune target-is-weak)
+  "Produce the DAMAGE dealt by UNIT-COUNT units.
+
+If the TARGET-IS-IMMUNE then deal no damage.
+
+If the TARGET-IS-WEAK then deal double damage."
+  (* unit-count
+     (if target-is-immune
+         0
+         (if target-is-weak
+             (* 2 damage)
+             damage))))
+
 (defun find-target (other-armies taken enemy-tag army)
   "Find a target in OTHER-ARMIES of tag ENEMY-TAG, which aren't TAKEN, for ARMY."
   (pcase army
@@ -151,12 +164,10 @@ See `parse-armies' for structure."
          for  other-is-immune-to-us       = (memq damage-type others-immunities)
          for  other-is-weak-to-us         = (memq damage-type others-weaknesses)
          for  others-effective-power      = (* others-unit-count others-damage)
-         for  our-damage-dealt            = (* unit-count
-                                               (if other-is-immune-to-us
-                                                   0
-                                                   (if other-is-weak-to-us
-                                                       (* 2 damage)
-                                                       damage)))
+         for  our-damage-dealt            = (damage-dealt damage
+                                                   unit-count
+                                                   other-is-immune-to-us
+                                                   other-is-weak-to-us)
          when (and (not (map-elt taken (cons enemy-tag i)))
                    (or (null best-index)
                        (or (> our-damage-dealt
@@ -232,12 +243,10 @@ See `parse-armies' for structure."
                              (nth target other-army))
                            (other-is-immune-to-us (memq damage-type others-immunities))
                            (other-is-weak-to-us   (memq damage-type others-weaknesses))
-                           (our-damage-this-round (* unit-count
-                                                     (if other-is-immune-to-us
-                                                         0
-                                                         (if other-is-weak-to-us
-                                                             (* 2 damage)
-                                                             damage))))
+                           (our-damage-this-round (damage-dealt damage
+                                                                unit-count
+                                                                other-is-immune-to-us
+                                                                other-is-weak-to-us))
                            (units-killed          (/ our-damage-this-round others-hit-points))
                            (new-others-unit-count (- others-unit-count units-killed)))
                 (setcar (nthcdr 3 (nth target other-army)) new-others-unit-count)
