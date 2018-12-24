@@ -212,15 +212,7 @@ If the TARGET-IS-WEAK then deal double damage."
            (sorted-by-initiative       (cl-sort tagged-armies-with-targets
                                                 #'>
                                                 :key #'caddr)))
-      (cl-loop for (target
-                     type
-                     _
-                     damage
-                     damage-type
-                     unit-count
-                     _
-                     _
-                     _)
+      (cl-loop for (target type _ damage damage-type unit-count _ _ _)
          in sorted-by-initiative
          for other-armies = (if (eq type 'IMMUNE) infection immune-system)
          when target
