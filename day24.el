@@ -210,10 +210,11 @@ If the TARGET-IS-WEAK then deal double damage."
            (sorted-by-initiative       (cl-sort tagged-armies-with-targets
                                                 #'>
                                                 :key #'caddr)))
-      (cl-loop for (target type _ damage damage-type unit-count _ _ _)
+      (cl-loop for (target type initiative damage damage-type unit-count _ _ _)
          in sorted-by-initiative
-         for other-armies = (if (eq type 'IMMUNE) infection immune-system)
-         when target
+         for other-armies = (if (eq type 'IMMUNE) infection     immune-system)
+         for my-armies    = (if (eq type 'IMMUNE) immune-system infection)
+         when (and target (cl-find initiative my-armies :key #'car))
            do (let* ((other-army            (nth target other-armies))
                      (others-unit-count     (nth 3 other-army))
                      (others-hit-points     (nth 4 other-army))
@@ -289,14 +290,53 @@ Infection:
 
 ;; # PART 2:
 
+(defun deep-copy (armies)
+  "Produce a deep copy of ARMIES."
+  (cl-mapcar (lambda (army) (seq-copy army)) armies))
+
 (defun day24-part-2 (input-file)
   "Run my solution to part two of the problem on the input in INPUT-FILE."
-  )
+  (let* ((armies                 (parse-armies input-file))
+         (original-immune-system (car armies))
+         (original-infection     (cdr armies)))
+    (cl-loop for i from 0
+       do (message "Boost is %s" i)
+       for immune-system = (cl-mapcar (lambda (army) (cl-subseq (cons (car army)
+                                                                      (cons (+ (cadr army) i)
+                                                                            (cddr army)))
+                                                                0))
+                                      (deep-copy original-immune-system))
+       for infection     = (deep-copy original-infection)
+       do (cl-loop while (and (> (length immune-system) 0)
+                              (> (length infection)     0))
+             ;; do (message "Immune system:")
+             ;; do (cl-loop for army in immune-system
+             ;;       do (message " - %s units" (nth 3 army)))
+             ;; do (message "Infection system:")
+             ;; do (cl-loop for army in infection
+             ;;       do (message " - %s units" (nth 3 army)))
+             for (next-immune-system . next-infection) = (tick immune-system infection)
+             do (setq immune-system next-immune-system
+                      infection     next-infection))
+          ;; repeat 1570
+       when (> (length immune-system) 0)
+         return (thread-last (cl-mapcar #'cadddr immune-system)
+                  (apply #'+)))))
 
-(let* ((test-input    "")
-       (test-computed (day24-part-2 test-input))
-       (test-ans      0))
-  (message "Expected: %s\n    Got:      %s" test-ans test-computed))
+;; 5060 -- too high
+;; 2304 -- too high
+
+;; Too slow
+;; (let* ((test-input    "Immune System:
+;; 17 units each with 5390 hit points (weak to radiation, bludgeoning) with an attack that does 4507 fire damage at initiative 2
+;; 989 units each with 1274 hit points (immune to fire; weak to bludgeoning, slashing) with an attack that does 25 slashing damage at initiative 3
+
+;; Infection:
+;; 801 units each with 4706 hit points (weak to radiation) with an attack that does 116 bludgeoning damage at initiative 1
+;; 4485 units each with 2961 hit points (immune to radiation; weak to fire, cold) with an attack that does 12 slashing damage at initiative 4")
+;;        (test-computed (day24-part-2 test-input))
+;;        (test-ans      51))
+;;   (message "Expected: %s\n    Got:      %s" test-ans test-computed))
 
 ;; Run the solution:
 
