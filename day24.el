@@ -191,13 +191,6 @@ If the TARGET-IS-WEAK then deal double damage."
                           (setf (map-elt taken (cons enemy-tag best-index)) t)
                           best-index)))))
 
-(defun untargetted-armies (armies taken army-tag)
-  "Produce the elements of ARMIES which aren't TAKEN and are of tag ARMY-TAG."
-  (cl-loop for army being the elements of armies
-     using (index i)
-     when (not (map-elt taken (cons army-tag i)))
-       collect army))
-
 (defun tick (immune-system infection)
   "Advance IMMUNE-SYSTEM and INFECTION by one unit of targetting and attack."
   (let* ((tagged-armies (append (cl-mapcar (apply-partially #'cons 'IMMUNE)
@@ -214,12 +207,11 @@ If the TARGET-IS-WEAK then deal double damage."
        for other-tag    = (if (eq type 'IMMUNE) 'INFECTION 'IMMUNE)
        do (push (find-target other-armies taken other-tag (cdr army)) targets))
     (setq targets (nreverse targets))
+    (message "Immunes: %s, Infections: %s, Targets: %s" (length immune-system) (length infection) targets)
     (let* ((tagged-armies-with-targets (cl-mapcar #'cons targets sorted-armies))
            (sorted-by-initiative       (cl-sort tagged-armies-with-targets
                                                 #'>
-                                                :key #'caddr))
-           (resulting-infection        (untargetted-armies infection     taken 'INFECTION))
-           (resulting-immune-system    (untargetted-armies immune-system taken 'IMMUNE)))
+                                                :key #'caddr)))
       (cl-loop for (target
                      type
                      _
@@ -230,37 +222,28 @@ If the TARGET-IS-WEAK then deal double damage."
                      _
                      _)
          in sorted-by-initiative
-         for other-army = (if (eq type 'IMMUNE) infection immune-system)
+         for other-armies = (if (eq type 'IMMUNE) infection immune-system)
          when target
-           do (pcase-let* ((`(,others-initiative
-                              ,others-damage
-                              ,others-damage-type
-                              ,others-unit-count
-                              ,others-hit-points
-                              ,others-immunities
-                              ,others-weaknesses)
-                             (nth target other-army))
-                           (other-is-immune-to-us (memq damage-type others-immunities))
-                           (other-is-weak-to-us   (memq damage-type others-weaknesses))
-                           (our-damage-this-round (damage-dealt damage
-                                                                unit-count
-                                                                other-is-immune-to-us
-                                                                other-is-weak-to-us))
-                           (units-killed          (/ our-damage-this-round others-hit-points))
-                           (new-others-unit-count (- others-unit-count units-killed)))
-                (setcar (nthcdr 3 (nth target other-army)) new-others-unit-count)
-                (when (> new-others-unit-count 0)
-                  (let ((result-army (list others-initiative
-                                           others-damage
-                                           others-damage-type
-                                           new-others-unit-count
-                                           others-hit-points
-                                           others-immunities
-                                           others-weaknesses)))
-                    (if (eq type 'IMMUNE)
-                        (push result-army resulting-infection)
-                        (push result-army resulting-immune-system))))))
-      (cons resulting-immune-system resulting-infection))))
+           do (let* ((other-army            (nth target other-armies))
+                     (others-unit-count     (nth 3 other-army))
+                     (others-hit-points     (nth 4 other-army))
+                     (others-immunities     (nth 5 other-army))
+                     (others-weaknesses     (nth 6 other-army))
+                     (other-is-immune-to-us (memq damage-type others-immunities))
+                     (other-is-weak-to-us   (memq damage-type others-weaknesses))
+                     (our-damage-this-round (damage-dealt damage
+                                                          unit-count
+                                                          other-is-immune-to-us
+                                                          other-is-weak-to-us))
+                     (units-killed          (/ our-damage-this-round others-hit-points))
+                     (new-others-unit-count (- others-unit-count units-killed)))
+                (setcar (nthcdr 3 other-army) new-others-unit-count)
+                (when (<= new-others-unit-count 0)
+                  (if (eq type 'IMMUNE)
+                      (setcar (nthcdr target infection)     nil)
+                      (setcar (nthcdr target immune-system) nil)))))
+      (cons (delq nil immune-system)
+            (delq nil infection)))))
 
 (defun day24-part-1 (input-file)
   "Run my solution to part one of the problem on the input in INPUT-FILE."
