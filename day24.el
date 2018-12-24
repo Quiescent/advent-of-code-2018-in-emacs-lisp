@@ -131,6 +131,55 @@ See `parse-armies' for structure."
 
 (require 'map)
 
+(defun find-target (other-armies taken enemy-tag army)
+  "Find a target in OTHER-ARMIES of tag ENEMY-TAG, which aren't TAKEN, for ARMY."
+  (pcase army
+    (`(,_ ,damage ,damage-type ,unit-count ,_ ,_ ,_)
+      (cl-loop for (others-initiative
+                          others-damage
+                          _
+                          others-unit-count
+                          _
+                          others-immunities
+                          others-weaknesses)
+           being the elements of other-armies
+         using (index i)
+         with best-others-effective-power = nil
+         with best-initiative             = nil
+         with best-index                  = nil
+         with best-damage-dealt           = nil
+         for  other-is-immune-to-us       = (memq damage-type others-immunities)
+         for  other-is-weak-to-us         = (memq damage-type others-weaknesses)
+         for  others-effective-power      = (* others-unit-count others-damage)
+         for  our-damage-dealt            = (* unit-count
+                                               (if other-is-immune-to-us
+                                                   0
+                                                   (if other-is-weak-to-us
+                                                       (* 2 damage)
+                                                       damage)))
+         when (and (not (map-elt taken (cons enemy-tag i)))
+                   (or (null best-index)
+                       (or (> our-damage-dealt
+                              best-damage-dealt)
+                           (and (eq our-damage-dealt
+                                    best-damage-dealt)
+                                (> others-effective-power
+                                   best-others-effective-power))
+                           (and (eq our-damage-dealt
+                                    best-damage-dealt)
+                                (eq others-effective-power
+                                    best-others-effective-power)
+                                (> others-initiative
+                                   best-initiative)))))
+           do (progn
+                (setq best-others-effective-power others-effective-power
+                      best-initiative             others-initiative
+                      best-index                  i
+                      best-damage-dealt           our-damage-dealt))
+         finally return (progn
+                          (setf (map-elt taken (cons enemy-tag best-index)) t)
+                          best-index)))))
+
 (defun tick (immune-system infection)
   "Advance IMMUNE-SYSTEM and INFECTION by one unit of targetting and attack."
   (let* ((tagged-armies (append (cl-mapcar (apply-partially #'cons 'IMMUNE)
@@ -141,53 +190,11 @@ See `parse-armies' for structure."
                           (cl-stable-sort #'> :key #'effective-power)))
          (taken         (make-hash-table :test #'equal))
          targets)
-    (cl-loop for (type _ damage damage-type unit-count _ _ _) in sorted-armies
-       for other-army = (if (eq type 'IMMUNE) infection  immune-system)
-       for other-tag  = (if (eq type 'IMMUNE) 'INFECTION 'IMMUNE)
-       do (cl-loop for (others-initiative
-                              others-damage
-                              _
-                              others-unit-count
-                              _
-                              others-immunities
-                              others-weaknesses)
-               being the elements of other-army
-             using (index i)
-             with best-others-effective-power = nil
-             with best-initiative             = nil
-             with best-index                  = nil
-             with best-damage-dealt           = nil
-             for  other-is-immune-to-us       = (memq damage-type others-immunities)
-             for  other-is-weak-to-us         = (memq damage-type others-weaknesses)
-             for  others-effective-power      = (* others-unit-count others-damage)
-             for  our-damage-dealt            = (* unit-count
-                                                   (if other-is-immune-to-us
-                                                       0
-                                                       (if other-is-weak-to-us
-                                                           (* 2 damage)
-                                                           damage)))
-             when (and (not (map-elt taken (cons other-tag i)))
-                       (or (null best-index)
-                           (or (> our-damage-dealt
-                                  best-damage-dealt)
-                               (and (eq our-damage-dealt
-                                        best-damage-dealt)
-                                    (> others-effective-power
-                                       best-others-effective-power))
-                               (and (eq our-damage-dealt
-                                        best-damage-dealt)
-                                    (eq others-effective-power
-                                        best-others-effective-power)
-                                    (> others-initiative
-                                       best-initiative)))))
-               do (progn
-                    (setq best-others-effective-power others-effective-power
-                          best-initiative             others-initiative
-                          best-index                  i
-                          best-damage-dealt           our-damage-dealt))
-             finally (progn
-                       (setf (map-elt taken (cons other-tag best-index)) t)
-                       (push best-index targets))))
+    (cl-loop for army in sorted-armies
+       for type         = (car army)
+       for other-armies = (if (eq type 'IMMUNE) infection  immune-system)
+       for other-tag    = (if (eq type 'IMMUNE) 'INFECTION 'IMMUNE)
+       do (push (find-target other-armies taken other-tag (cdr army)) targets))
     (setq targets (nreverse targets))
     (let* ((tagged-armies-with-targets (cl-mapcar #'cons targets sorted-armies))
            (sorted-by-initiative       (cl-sort tagged-armies-with-targets
