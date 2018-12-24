@@ -191,6 +191,13 @@ If the TARGET-IS-WEAK then deal double damage."
                           (setf (map-elt taken (cons enemy-tag best-index)) t)
                           best-index)))))
 
+(defun untargetted-armies (armies taken army-tag)
+  "Produce the elements of ARMIES which aren't TAKEN and are of tag ARMY-TAG."
+  (cl-loop for army being the elements of armies
+     using (index i)
+     when (not (map-elt taken (cons army-tag i)))
+       collect army))
+
 (defun tick (immune-system infection)
   "Advance IMMUNE-SYSTEM and INFECTION by one unit of targetting and attack."
   (let* ((tagged-armies (append (cl-mapcar (apply-partially #'cons 'IMMUNE)
@@ -211,16 +218,8 @@ If the TARGET-IS-WEAK then deal double damage."
            (sorted-by-initiative       (cl-sort tagged-armies-with-targets
                                                 #'>
                                                 :key #'caddr))
-           resulting-infection
-           resulting-immune-system)
-      (cl-loop for infection-army being the elements of infection
-         using (index i)
-         when (not (map-elt taken (cons 'INFECTION i)))
-           do (push infection-army resulting-infection))
-      (cl-loop for immune-system-army being the elements of immune-system
-         using (index i)
-         when (not (map-elt taken (cons 'IMMUNE i)))
-           do (push immune-system-army resulting-immune-system))
+           (resulting-infection        (untargetted-armies infection     taken 'INFECTION))
+           (resulting-immune-system    (untargetted-armies immune-system taken 'IMMUNE)))
       (cl-loop for (target
                      type
                      _
