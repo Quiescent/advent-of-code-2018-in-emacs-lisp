@@ -309,22 +309,33 @@ Infection:
        for infection     = (deep-copy original-infection)
        do (cl-loop while (and (> (length immune-system) 0)
                               (> (length infection)     0))
-             ;; do (message "Immune system:")
-             ;; do (cl-loop for army in immune-system
-             ;;       do (message " - %s units" (nth 3 army)))
-             ;; do (message "Infection system:")
-             ;; do (cl-loop for army in infection
-             ;;       do (message " - %s units" (nth 3 army)))
+             for immune-before    = (thread-last (cl-mapcar #'cadddr immune-system)
+                                      (apply #'+))
+             for infection-before = (thread-last (cl-mapcar #'cadddr infection)
+                                      (apply #'+))
              for (next-immune-system . next-infection) = (tick immune-system infection)
+             for immune-after     = (thread-last (cl-mapcar #'cadddr next-immune-system)
+                                      (apply #'+))
+             for infection-after  = (thread-last (cl-mapcar #'cadddr next-infection)
+                                      (apply #'+))
+             when (and (eq immune-before    immune-after)
+                       (eq infection-before infection-after))
+               do (progn
+                    (setq immune-system nil)
+                    (cl-return))
              do (setq immune-system next-immune-system
                       infection     next-infection))
-          ;; repeat 1570
        when (> (length immune-system) 0)
          return (thread-last (cl-mapcar #'cadddr immune-system)
                   (apply #'+)))))
 
 ;; 5060 -- too high
 ;; 2304 -- too high
+;; 1847 -- correct
+
+;; This algorithm is very slow.  A better implementation would be to
+;; jump by increments and then narrow down on the region where you
+;; win.
 
 ;; Too slow
 ;; (let* ((test-input    "Immune System:
