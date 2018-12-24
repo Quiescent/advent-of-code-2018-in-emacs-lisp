@@ -168,20 +168,21 @@ If the TARGET-IS-WEAK then deal double damage."
                                                    unit-count
                                                    other-is-immune-to-us
                                                    other-is-weak-to-us)
-         when (and (not (map-elt taken (cons enemy-tag i)))
+         when (and (not (eq our-damage-dealt 0))
+                   (not (map-elt taken (cons enemy-tag i)))
                    (or (null best-index)
-                       (or (> our-damage-dealt
-                              best-damage-dealt)
-                           (and (eq our-damage-dealt
-                                    best-damage-dealt)
-                                (> others-effective-power
-                                   best-others-effective-power))
-                           (and (eq our-damage-dealt
-                                    best-damage-dealt)
-                                (eq others-effective-power
-                                    best-others-effective-power)
-                                (> others-initiative
-                                   best-initiative)))))
+                       (> our-damage-dealt
+                          best-damage-dealt)
+                       (and (eq our-damage-dealt
+                                best-damage-dealt)
+                            (> others-effective-power
+                               best-others-effective-power))
+                       (and (eq our-damage-dealt
+                                best-damage-dealt)
+                            (eq others-effective-power
+                                best-others-effective-power)
+                            (> others-initiative
+                               best-initiative))))
            do (progn
                 (setq best-others-effective-power others-effective-power
                       best-initiative             others-initiative
