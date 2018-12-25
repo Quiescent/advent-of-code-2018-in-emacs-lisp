@@ -30,23 +30,6 @@ so that Emacs doesn't hang.")
      (abs (- (caddr  this) (caddr  that)))
      (abs (- (cadddr this) (cadddr that)))))
 
-(defun in-constellation (point constellation)
-  "Produce t if POINT is in CONSTELLATION."
-  (cl-find-if (lambda (other-point) (< (manhattan-distance point other-point)
-                                       3))
-              constellation))
-
-(defun initial-constellations (points)
-  "Produce an initial set of constellations from POINTS."
-  (let* ((constellations `((,(car points)))))
-    (cl-loop for point in (cdr points)
-       for constellation = (cl-find-if (apply-partially #'in-constellation point) constellations)
-       if constellation
-         do (push point constellation)
-       else
-         do (push (list point) constellations)
-       finally return constellations)))
-
 (defun constellations-can-merge (this other)
   "Produce t if THIS contains a point close enough to a point in OTHER."
   (cl-some (lambda (other-point)
@@ -58,8 +41,9 @@ so that Emacs doesn't hang.")
 
 (defun day25-part-1 (input-file)
   "Run my solution to part one of the problem on the input in INPUT-FILE."
-  (let* ((points         (parse-points input-file))
-         (constellations (cl-mapcar #'list points)))
+  (let* ((points            (parse-points input-file))
+         (constellations    (cl-mapcar #'list points))
+         (gc-cons-threshold most-positive-fixnum))
     (cl-loop
        with merged-two = nil
        with next       = '()
