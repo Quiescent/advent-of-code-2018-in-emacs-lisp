@@ -25,12 +25,10 @@ so that Emacs doesn't hang.")
 
 (defun manhattan-distance (this that)
   "Produce the manhattan distance btween THIS and THAT."
-  (pcase (cons this that)
-    (`((,x1 ,y1 ,z1 ,t1) . (,x2 ,y2 ,z2 ,t2))
-      (+ (abs (- x1 x2))
-         (abs (- y1 y2))
-         (abs (- z1 z2))
-         (abs (- t1 t2))))))
+  (+ (abs (- (car    this) (car    that)))
+     (abs (- (cadr   this) (cadr   that)))
+     (abs (- (caddr  this) (caddr  that)))
+     (abs (- (cadddr this) (cadddr that)))))
 
 (defun in-constellation (point constellation)
   "Produce t if POINT is in CONSTELLATION."
@@ -85,6 +83,19 @@ so that Emacs doesn't hang.")
                 (cl-return))
               (setq merged-two nil)))
     (length constellations)))
+
+;; Answer: 430
+
+(when run-from-batch
+  (progn
+    (message "%s"
+             (benchmark-run 1
+               (let ((input-1 (save-window-excursion
+                                (with-temp-buffer
+                                  (find-file-literally "day25-part-1")
+                                  (buffer-substring (point-min)
+                                                    (point-max))))))
+                 (message "Part 1: %s" (day25-part-1 input-1)))))))
 
 (let* ((test-input    "-1,2,2,0
 0,0,2,-2
