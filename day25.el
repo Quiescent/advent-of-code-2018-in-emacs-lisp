@@ -109,14 +109,8 @@ so that Emacs doesn't hang.")
                      (with-temp-buffer
                        (find-file-literally "day25-part-1")
                        (buffer-substring (point-min)
-                                         (point-max)))))
-          (input-2 (save-window-excursion
-                     (with-temp-buffer
-                       (find-file-literally "day25-part-1")
-                       (buffer-substring (point-min)
                                          (point-max))))))
-      (message "Part 1: %s" (day25-part-1 input-1))
-      (message "Part 2: %s\n" (day25-part-2 input-2)))))
+      (message "Part 1: %s" (day25-part-1 input-1)))))
 
 (provide 'day25)
 ;;; day25 ends here
